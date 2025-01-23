@@ -1,6 +1,9 @@
+mod syntax;
+
 use std::env;
 use std::fs;
 use std::io::{self, Write};
+use crate::syntax::tokenizer::Scanner;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -15,14 +18,15 @@ fn main() {
     match command.as_str() {
         "tokenize" => {
             let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
+                eprintln!("Failed to read file {}", filename);
                 String::new()
             });
 
-            if !file_contents.is_empty() {
-                panic!("Scanner not implemented");
-            } else {
-                println!("EOF  null");
+            let mut scanner = Scanner::new(&file_contents);
+            let tokens = scanner.scan_tokens();
+
+            for token in tokens {
+                println!("{}", token);
             }
         }
         _ => {
