@@ -39,6 +39,12 @@ impl<'a> Scanner<'a> {
                 ')' => Some(TokenType::RightParen),
                 '{' => Some(TokenType::LeftBrace),
                 '}' => Some(TokenType::RightBrace),
+                ',' => Some(TokenType::Comma),
+                '.' => Some(TokenType::Dot),
+                ';' => Some(TokenType::Semicolon),
+                '-' => Some(TokenType::Minus),
+                '+' => Some(TokenType::Plus),
+                '*' => Some(TokenType::Star),
                 _ => None,
             };
 
@@ -62,14 +68,19 @@ mod tests {
 
     #[test]
     fn test_lexer_single_character_tokens() {
-        let source = "{(()}";
+        let source = "{(,.;-+*)}";
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens();
 
         assert_eq!(tokens, vec![
             Token { token: TokenType::LeftBrace, lexeme: "{", line: 1 },
             Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
-            Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
+            Token { token: TokenType::Comma, lexeme: ",", line: 1 },
+            Token { token: TokenType::Dot, lexeme: ".", line: 1 },
+            Token { token: TokenType::Semicolon, lexeme: ";", line: 1 },
+            Token { token: TokenType::Minus, lexeme: "-", line: 1 },
+            Token { token: TokenType::Plus, lexeme: "+", line: 1 },
+            Token { token: TokenType::Star, lexeme: "*", line: 1 },
             Token { token: TokenType::RightParen, lexeme: ")", line: 1 },
             Token { token: TokenType::RightBrace, lexeme: "}", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
