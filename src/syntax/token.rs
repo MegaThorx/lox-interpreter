@@ -15,14 +15,16 @@ pub enum TokenType<'a> {
 
     // Literals
     String(&'a str),
+    Number(f64),
 
     Eof,
 }
 
 impl Display for TokenType<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let token_name = match self {
-            &TokenType::String(_) => "STRING".to_string(),
+        let token_name = match *self {
+            TokenType::String(_) => "STRING".to_string(),
+            TokenType::Number(_) => "NUMBER".to_string(),
             _ => {
                 let name = format!("{:?}", self);
                 let mut chars = name.chars();
@@ -69,6 +71,13 @@ impl Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let value = match self.token {
             TokenType::String(value) => value.to_string(),
+            TokenType::Number(value) => {
+                if value.fract() == 0.0 {
+                    format!("{:.1}", value)
+                } else {
+                    value.to_string()
+                }
+            },
             _ => "null".to_string(),
         };
 

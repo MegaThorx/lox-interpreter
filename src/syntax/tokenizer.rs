@@ -132,7 +132,30 @@ impl<'a> Scanner<'a> {
                 continue;
             }
 
-            
+            if token.is_ascii_digit() {
+                let mut found_dot = false;
+                while let Some(token) = peekable.peek() {
+                    if token.is_ascii_digit() {
+                        self.current += 1;
+                        peekable.next();
+                    } else if *token == '.' && !found_dot {
+                        found_dot = true;
+                        peekable.next();
+                        self.current += 1;
+                    } else {
+                        break;
+                    }
+                }
+
+                let value: f64 = self.source[self.start..self.current]
+                    .parse()
+                    .unwrap();
+
+                tokens.push(Token::new(TokenType::Number(value), &self.source[self.start..self.current], self.line));
+
+                continue;
+            }
+
             errors.push(format!("[line {}] Error: Unexpected character: {}", self.line, token));
         }
 
@@ -273,6 +296,23 @@ mod tests {
             "[line 1] Error: Unterminated string.".to_string(),
         ]);
         assert_eq!(tokens, vec![
+            Token { token: TokenType::Eof, lexeme: "", line: 1 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_literal_number() {
+        let source = "123 123.123 .1 1";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::Number(123.0), lexeme: "123", line: 1 },
+            Token { token: TokenType::Number(123.123), lexeme: "123.123", line: 1 },
+            Token { token: TokenType::Dot, lexeme: ".", line: 1 },
+            Token { token: TokenType::Number(1.0), lexeme: "1", line: 1 },
+            Token { token: TokenType::Number(1.0), lexeme: "1", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
     }
