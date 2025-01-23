@@ -54,6 +54,28 @@ impl<'a> Scanner<'a> {
                 continue;
             }
 
+            let token_type = match (token, peekable.peek()) {
+                ('=', Some('=')) => Some(TokenType::EqualEqual),
+                (_, _) => None,
+            };
+
+            if let Some(token_type) = token_type {
+                self.current += 1;
+                peekable.next();
+                tokens.push(Token::new(token_type, &self.source[self.start..self.current], self.line));
+                continue;
+            }
+
+            let token_type = match token {
+                '=' => Some(TokenType::Equal),
+                _ => None,
+            };
+
+            if let Some(token_type) = token_type {
+                tokens.push(Token::new(token_type, &self.source[self.start..self.current], self.line));
+                continue;
+            }
+
             errors.push(format!("[line {}] Error: Unexpected character: {}", self.line, token));
         }
 
@@ -86,6 +108,26 @@ mod tests {
             Token { token: TokenType::Plus, lexeme: "+", line: 1 },
             Token { token: TokenType::Star, lexeme: "*", line: 1 },
             Token { token: TokenType::RightParen, lexeme: ")", line: 1 },
+            Token { token: TokenType::RightBrace, lexeme: "}", line: 1 },
+            Token { token: TokenType::Eof, lexeme: "", line: 1 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_one_or_two_character_tokens() {
+        let source = "({=}){==}";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
+            Token { token: TokenType::LeftBrace, lexeme: "{", line: 1 },
+            Token { token: TokenType::Equal, lexeme: "=", line: 1 },
+            Token { token: TokenType::RightBrace, lexeme: "}", line: 1 },
+            Token { token: TokenType::RightParen, lexeme: ")", line: 1 },
+            Token { token: TokenType::LeftBrace, lexeme: "{", line: 1 },
+            Token { token: TokenType::EqualEqual, lexeme: "==", line: 1 },
             Token { token: TokenType::RightBrace, lexeme: "}", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
