@@ -156,6 +156,21 @@ impl<'a> Scanner<'a> {
                 continue;
             }
 
+            if token.is_ascii_alphabetic() || token == '_' {
+                while let Some(token) = peekable.peek() {
+                    if token.is_ascii_alphanumeric() || *token == '_' {
+                        peekable.next();
+                        self.current += 1;
+                    } else {
+                        break;
+                    }
+                }
+                
+                tokens.push(Token::new(TokenType::Identifier(&self.source[self.start..self.current]), &self.source[self.start..self.current], self.line));
+
+                continue;
+            }
+            
             errors.push(format!("[line {}] Error: Unexpected character: {}", self.line, token));
         }
 
@@ -313,6 +328,23 @@ mod tests {
             Token { token: TokenType::Dot, lexeme: ".", line: 1 },
             Token { token: TokenType::Number(1.0), lexeme: "1", line: 1 },
             Token { token: TokenType::Number(1.0), lexeme: "1", line: 1 },
+            Token { token: TokenType::Eof, lexeme: "", line: 1 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_literal_identifier() {
+        let source = "tomato apple nuts1 deez_nuts _test";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::Identifier("tomato"), lexeme: "tomato", line: 1 },
+            Token { token: TokenType::Identifier("apple"), lexeme: "apple", line: 1 },
+            Token { token: TokenType::Identifier("nuts1"), lexeme: "nuts1", line: 1 },
+            Token { token: TokenType::Identifier("deez_nuts"), lexeme: "deez_nuts", line: 1 },
+            Token { token: TokenType::Identifier("_test"), lexeme: "_test", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
     }

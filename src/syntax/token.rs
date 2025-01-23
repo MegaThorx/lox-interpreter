@@ -16,6 +16,7 @@ pub enum TokenType<'a> {
     // Literals
     String(&'a str),
     Number(f64),
+    Identifier(&'a str),
 
     Eof,
 }
@@ -25,6 +26,7 @@ impl Display for TokenType<'_> {
         let token_name = match *self {
             TokenType::String(_) => "STRING".to_string(),
             TokenType::Number(_) => "NUMBER".to_string(),
+            TokenType::Identifier(_) => "IDENTIFIER".to_string(),
             _ => {
                 let name = format!("{:?}", self);
                 let mut chars = name.chars();
@@ -41,7 +43,7 @@ impl Display for TokenType<'_> {
                         }
                     }
                 }
-                
+
                 token_name
             }
         };
@@ -64,7 +66,7 @@ impl Token<'_> {
             lexeme,
             line,
         }
-    } 
+    }
 }
 
 impl Display for Token<'_> {
