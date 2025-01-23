@@ -3,6 +3,7 @@ mod syntax;
 use std::env;
 use std::fs;
 use std::io::{self, Write};
+use std::process::exit;
 use crate::syntax::tokenizer::Scanner;
 
 fn main() {
@@ -23,10 +24,18 @@ fn main() {
             });
 
             let mut scanner = Scanner::new(&file_contents);
-            let tokens = scanner.scan_tokens();
+            let (tokens, errors) = scanner.scan_tokens();
+
+            for error in errors.iter() {
+                eprintln!("{}", error);
+            }
 
             for token in tokens {
                 println!("{}", token);
+            }
+
+            if !errors.is_empty() {
+                exit(65);
             }
         }
         _ => {

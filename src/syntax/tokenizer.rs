@@ -17,8 +17,9 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Vec<Token> {
+    pub fn scan_tokens(&mut self) -> (Vec<Token>, Vec<String>) {
         let mut tokens: Vec<Token> = Vec::new();
+        let mut errors: Vec<String> = Vec::new();
         self.current = 0;
         self.line = 1;
 
@@ -52,11 +53,13 @@ impl<'a> Scanner<'a> {
                 tokens.push(Token::new(token_type, &self.source[self.start..self.current], self.line));
                 continue;
             }
+
+            errors.push(format!("[line {}] Error: Unexpected character: {}", self.line, token));
         }
 
         tokens.push(Token::new(TokenType::Eof, "", self.line));
 
-        tokens
+        (tokens, errors)
     }
 }
 
@@ -70,8 +73,9 @@ mod tests {
     fn test_lexer_single_character_tokens() {
         let source = "{(,.;-+*)}";
         let mut scanner = Scanner::new(source);
-        let tokens = scanner.scan_tokens();
+        let (tokens, errors) = scanner.scan_tokens();
 
+        assert!(errors.is_empty());
         assert_eq!(tokens, vec![
             Token { token: TokenType::LeftBrace, lexeme: "{", line: 1 },
             Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
@@ -83,6 +87,24 @@ mod tests {
             Token { token: TokenType::Star, lexeme: "*", line: 1 },
             Token { token: TokenType::RightParen, lexeme: ")", line: 1 },
             Token { token: TokenType::RightBrace, lexeme: "}", line: 1 },
+            Token { token: TokenType::Eof, lexeme: "", line: 1 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_lexical_errors() {
+        let source = ",.$(#";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert_eq!(errors, vec![
+            "[line 1] Error: Unexpected character: $",
+            "[line 1] Error: Unexpected character: #",
+        ]);
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::Comma, lexeme: ",", line: 1 },
+            Token { token: TokenType::Dot, lexeme: ".", line: 1 },
+            Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
     }
