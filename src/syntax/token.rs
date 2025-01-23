@@ -8,6 +8,7 @@ pub enum TokenType {
 
     // One or two character tokens
     Equal, EqualEqual,
+    Bang, BangEqual,
 
     Eof,
 }

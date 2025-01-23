@@ -56,6 +56,7 @@ impl<'a> Scanner<'a> {
 
             let token_type = match (token, peekable.peek()) {
                 ('=', Some('=')) => Some(TokenType::EqualEqual),
+                ('!', Some('=')) => Some(TokenType::BangEqual),
                 (_, _) => None,
             };
 
@@ -68,6 +69,7 @@ impl<'a> Scanner<'a> {
 
             let token_type = match token {
                 '=' => Some(TokenType::Equal),
+                '!' => Some(TokenType::Bang),
                 _ => None,
             };
 
@@ -115,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_lexer_one_or_two_character_tokens() {
-        let source = "({=}){==}";
+        let source = "({=}){==}(!){!=}";
         let mut scanner = Scanner::new(source);
         let (tokens, errors) = scanner.scan_tokens();
 
@@ -128,6 +130,12 @@ mod tests {
             Token { token: TokenType::RightParen, lexeme: ")", line: 1 },
             Token { token: TokenType::LeftBrace, lexeme: "{", line: 1 },
             Token { token: TokenType::EqualEqual, lexeme: "==", line: 1 },
+            Token { token: TokenType::RightBrace, lexeme: "}", line: 1 },
+            Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
+            Token { token: TokenType::Bang, lexeme: "!", line: 1 },
+            Token { token: TokenType::RightParen, lexeme: ")", line: 1 },
+            Token { token: TokenType::LeftBrace, lexeme: "{", line: 1 },
+            Token { token: TokenType::BangEqual, lexeme: "!=", line: 1 },
             Token { token: TokenType::RightBrace, lexeme: "}", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
