@@ -69,7 +69,23 @@ impl<'a> Scanner<'a> {
                 continue;
             }
 
+            if token == '/' && peekable.peek() == Some(&'/') {
+                peekable.next(); // Consume second slash
+                self.current += token.len_utf8();
+
+                for token in peekable.by_ref() {
+                    self.current += token.len_utf8();
+                    if token == '\n' {
+                        self.line += 1;
+                        break;
+                    }
+                }
+
+                continue;
+            }
+
             let token_type = match token {
+                '/' => Some(TokenType::Slash),
                 '=' => Some(TokenType::Equal),
                 '!' => Some(TokenType::Bang),
                 '<' => Some(TokenType::Less),
@@ -121,7 +137,7 @@ mod tests {
 
     #[test]
     fn test_lexer_one_or_two_character_tokens() {
-        let source = "({=}){==}(!){!=}<(>(>=(<=";
+        let source = "({=}){==}(!){!=}<(>(>=(<=/(//()";
         let mut scanner = Scanner::new(source);
         let (tokens, errors) = scanner.scan_tokens();
 
@@ -148,6 +164,8 @@ mod tests {
             Token { token: TokenType::GreaterEqual, lexeme: ">=", line: 1 },
             Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
             Token { token: TokenType::LessEqual, lexeme: "<=", line: 1 },
+            Token { token: TokenType::Slash, lexeme: "/", line: 1 },
+            Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
     }
