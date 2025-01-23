@@ -37,6 +37,8 @@ impl<'a> Scanner<'a> {
             let token_type = match token {
                 '(' => Some(TokenType::LeftParen),
                 ')' => Some(TokenType::RightParen),
+                '{' => Some(TokenType::LeftBrace),
+                '}' => Some(TokenType::RightBrace),
                 _ => None,
             };
 
@@ -60,14 +62,16 @@ mod tests {
 
     #[test]
     fn test_lexer_single_character_tokens() {
-        let source = "(()";
+        let source = "{(()}";
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan_tokens();
 
         assert_eq!(tokens, vec![
+            Token { token: TokenType::LeftBrace, lexeme: "{", line: 1 },
             Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
             Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
             Token { token: TokenType::RightParen, lexeme: ")", line: 1 },
+            Token { token: TokenType::RightBrace, lexeme: "}", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
     }

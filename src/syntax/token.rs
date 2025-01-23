@@ -3,7 +3,7 @@
 #[derive(Debug, PartialEq)]
 pub enum TokenType {
     // Single character tokens
-    LeftParen, RightParen,
+    LeftParen, RightParen, LeftBrace, RightBrace,
 
     Eof,
 }
