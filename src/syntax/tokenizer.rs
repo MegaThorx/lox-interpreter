@@ -113,6 +113,26 @@ impl<'a> Scanner<'a> {
                 continue;
             }
 
+            if token == '"' {
+                let line_start = self.line;
+                loop {
+                    if let Some(token) = peekable.next() {
+                        self.current += token.len_utf8();
+                        if token == '"' {
+                            tokens.push(Token::new(TokenType::String(&self.source[self.start + 1..self.current - 1]), &self.source[self.start..self.current], line_start));
+                            break;
+                        } else if token == '\n' {
+                            self.line += 1;
+                        }
+                    } else {
+                        errors.push(format!("[line {}] Error: Unterminated string.", self.line));
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            
             errors.push(format!("[line {}] Error: Unexpected character: {}", self.line, token));
         }
 
@@ -212,6 +232,48 @@ mod tests {
         assert!(errors.is_empty());
         assert_eq!(tokens, vec![
             Token { token: TokenType::Eof, lexeme: "", line: 2 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_literal_string() {
+        let source = " \"Hello World\"\n\"\"";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::String("Hello World"), lexeme: "\"Hello World\"", line: 1 },
+            Token { token: TokenType::String(""), lexeme: "\"\"", line: 2 },
+            Token { token: TokenType::Eof, lexeme: "", line: 2 }
+        ]);
+    }
+
+
+    #[test]
+    fn test_lexer_literal_string_with_newline() {
+        let source = " \"Hello\nWorld\"";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::String("Hello\nWorld"), lexeme: "\"Hello\nWorld\"", line: 1 },
+            Token { token: TokenType::Eof, lexeme: "", line: 2 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_literal_string_unterminated() {
+        let source = " \"Hello World";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert_eq!(errors, vec![
+            "[line 1] Error: Unterminated string.".to_string(),
+        ]);
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
     }
 }
