@@ -1,4 +1,24 @@
 ﻿use crate::syntax::token::{Token, TokenType};
+use phf::{phf_map, Map};
+
+static KEYWORDS: Map<&'static str, TokenType> = phf_map! {
+    "and" => TokenType::And,
+    "class" => TokenType::Class,
+    "else" => TokenType::Else,
+    "false" => TokenType::False,
+    "for" => TokenType::For,
+    "fun" => TokenType::Fun,
+    "if" => TokenType::If,
+    "nil" => TokenType::Nil,
+    "or" => TokenType::Or,
+    "print" => TokenType::Print,
+    "return" => TokenType::Return,
+    "super" => TokenType::Super,
+    "this" => TokenType::This,
+    "true" => TokenType::True,
+    "var" => TokenType::Var,
+    "while" => TokenType::While,
+};
 
 pub struct Scanner<'a> {
     source: &'a str,
@@ -165,12 +185,16 @@ impl<'a> Scanner<'a> {
                         break;
                     }
                 }
-                
-                tokens.push(Token::new(TokenType::Identifier(&self.source[self.start..self.current]), &self.source[self.start..self.current], self.line));
+
+                if let Some(token_type) = KEYWORDS.get(&self.source[self.start..self.current]) {
+                    tokens.push(Token::new(token_type.clone(), &self.source[self.start..self.current], self.line));
+                } else {
+                    tokens.push(Token::new(TokenType::Identifier(&self.source[self.start..self.current]), &self.source[self.start..self.current], self.line));
+                }
 
                 continue;
             }
-            
+
             errors.push(format!("[line {}] Error: Unexpected character: {}", self.line, token));
         }
 
@@ -345,6 +369,34 @@ mod tests {
             Token { token: TokenType::Identifier("nuts1"), lexeme: "nuts1", line: 1 },
             Token { token: TokenType::Identifier("deez_nuts"), lexeme: "deez_nuts", line: 1 },
             Token { token: TokenType::Identifier("_test"), lexeme: "_test", line: 1 },
+            Token { token: TokenType::Eof, lexeme: "", line: 1 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_literal_keywords() {
+        let source = "and class else false for fun if nil or print return super this true var while";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::And, lexeme: "and", line: 1 },
+            Token { token: TokenType::Class, lexeme: "class", line: 1 },
+            Token { token: TokenType::Else, lexeme: "else", line: 1 },
+            Token { token: TokenType::False, lexeme: "false", line: 1 },
+            Token { token: TokenType::For, lexeme: "for", line: 1 },
+            Token { token: TokenType::Fun, lexeme: "fun", line: 1 },
+            Token { token: TokenType::If, lexeme: "if", line: 1 },
+            Token { token: TokenType::Nil, lexeme: "nil", line: 1 },
+            Token { token: TokenType::Or, lexeme: "or", line: 1 },
+            Token { token: TokenType::Print, lexeme: "print", line: 1 },
+            Token { token: TokenType::Return, lexeme: "return", line: 1 },
+            Token { token: TokenType::Super, lexeme: "super", line: 1 },
+            Token { token: TokenType::This, lexeme: "this", line: 1 },
+            Token { token: TokenType::True, lexeme: "true", line: 1 },
+            Token { token: TokenType::Var, lexeme: "var", line: 1 },
+            Token { token: TokenType::While, lexeme: "while", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
     }

@@ -1,6 +1,6 @@
 ﻿use std::fmt::Display;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenType<'a> {
     // Single character tokens
     LeftParen, RightParen, LeftBrace, RightBrace,
@@ -17,7 +17,11 @@ pub enum TokenType<'a> {
     String(&'a str),
     Number(f64),
     Identifier(&'a str),
-
+    
+    // Keywords
+    And, Class, Else, False, For, Fun, If, Nil, Or,
+    Print, Return, Super, This, True, Var, While,
+    
     Eof,
 }
 
