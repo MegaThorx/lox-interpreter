@@ -35,6 +35,21 @@ impl<'a> Scanner<'a> {
             self.start = self.current;
             self.current += token.len_utf8();
 
+            let should_ignore = match token {
+                ' ' => true,
+                '\r' => true,
+                '\t' => true,
+                '\n' => {
+                    self.line += 1;
+                    true
+                },
+                _ => false,
+            };
+
+            if should_ignore {
+                continue;
+            }
+
             let token_type = match token {
                 '(' => Some(TokenType::LeftParen),
                 ')' => Some(TokenType::RightParen),
@@ -185,6 +200,18 @@ mod tests {
             Token { token: TokenType::Dot, lexeme: ".", line: 1 },
             Token { token: TokenType::LeftParen, lexeme: "(", line: 1 },
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_whitespaces() {
+        let source = " \t\r\n";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::Eof, lexeme: "", line: 2 }
         ]);
     }
 }
