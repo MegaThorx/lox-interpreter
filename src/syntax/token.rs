@@ -36,15 +36,14 @@ impl Display for TokenType<'_> {
                 let mut chars = name.chars();
                 let mut token_name = String::new();
 
-                if let Some(first_char) = chars.next() {
-                    token_name.push(first_char.to_ascii_uppercase());
-                    for char in chars {
-                        if char == char.to_ascii_uppercase() {
-                            token_name.push('_');
-                            token_name.push(char);
-                        } else {
-                            token_name.push(char.to_ascii_uppercase());
-                        }
+                let first_char = chars.next().unwrap();
+                token_name.push(first_char.to_ascii_uppercase());
+                for char in chars {
+                    if char == char.to_ascii_uppercase() {
+                        token_name.push('_');
+                        token_name.push(char);
+                    } else {
+                        token_name.push(char.to_ascii_uppercase());
                     }
                 }
 

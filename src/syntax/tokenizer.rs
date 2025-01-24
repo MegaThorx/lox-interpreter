@@ -400,4 +400,43 @@ mod tests {
             Token { token: TokenType::Eof, lexeme: "", line: 1 }
         ]);
     }
+
+    #[test]
+    fn test_lexer_comment() {
+        let source = "123// Hello World\n123.123";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::Number(123.0), lexeme: "123", line: 1 },
+            Token { token: TokenType::Number(123.123), lexeme: "123.123", line: 2 },
+            Token { token: TokenType::Eof, lexeme: "", line: 2 }
+        ]);
+    }
+
+    #[test]
+    fn test_lexer_and_token_to_string() {
+        let source = "\"test\" 123 123.123 asdf ==";
+        let mut scanner = Scanner::new(source);
+        let (tokens, errors) = scanner.scan_tokens();
+
+        assert!(errors.is_empty());
+        assert_eq!(tokens, vec![
+            Token { token: TokenType::String("test"), lexeme: "\"test\"", line: 1 },
+            Token { token: TokenType::Number(123.0), lexeme: "123", line: 1 },
+            Token { token: TokenType::Number(123.123), lexeme: "123.123", line: 1 },
+            Token { token: TokenType::Identifier("asdf"), lexeme: "asdf", line: 1 },
+            Token { token: TokenType::EqualEqual, lexeme: "==", line: 1 },
+            Token { token: TokenType::Eof, lexeme: "", line: 1 }
+        ]);  
+        assert_eq!(tokens.iter().map(|token| format!("{}", token)).collect::<Vec<String>>(), vec![
+            "STRING \"test\" test",
+            "NUMBER 123 123.0",
+            "NUMBER 123.123 123.123",
+            "IDENTIFIER asdf null",
+            "EQUAL_EQUAL == null",
+            "EOF  null"
+        ]);
+    }
 }
