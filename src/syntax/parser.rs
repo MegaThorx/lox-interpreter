@@ -2,18 +2,21 @@ use crate::syntax::expression::{Expression, Literal};
 use crate::syntax::token::{Token, TokenType};
 
 pub struct Parser<'a> {
-    tokens: Vec<Token<'a>>
+    tokens: Vec<Token<'a>>,
+    current: usize,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: Vec<Token<'a>>) -> Self {
         Parser {
-            tokens
+            tokens,
+            current: 0,
         }
     }
 
     pub fn parse_expression(&mut self) -> Expression {
-        let token = self.tokens.first().unwrap();
+        let token = &self.tokens[self.current];
+        self.current += 1;
 
         match token.token {
             TokenType::True => Expression::Literal(Literal::Bool(true)),
@@ -21,6 +24,7 @@ impl<'a> Parser<'a> {
             TokenType::Number(number)  => Expression::Literal(Literal::Number(number)),
             TokenType::String(string) => Expression::Literal(Literal::String(string)),
             TokenType::Nil => Expression::Literal(Literal::None),
+            TokenType::LeftParen => Expression::Grouping(Box::new(self.parse_expression())),
             _ => panic!("Not implemented"),
         }
     }
@@ -83,5 +87,23 @@ mod tests {
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
         assert_eq!(parser.parse_expression().to_string(), "test");
+    }
+
+    #[test]
+    fn test_parser_group_simple() {
+        let source = "(\"foo\")";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(group foo)");
+    }
+
+    #[test]
+    fn test_parser_group_multiple() {
+        let source = "((\"foo\"))";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(group (group foo))");
     }
 }

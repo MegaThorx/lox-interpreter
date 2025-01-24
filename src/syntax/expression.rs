@@ -25,12 +25,14 @@ impl Display for Literal<'_> {
 
 pub enum Expression<'a> {
     Literal(Literal<'a>),
+    Grouping(Box<Expression<'a>>),
 }
 
 impl Display for Expression<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expression::Literal(literal) => write!(f, "{}", literal),
+            Expression::Grouping(expression) => write!(f, "(group {})", expression),
         }
     }
 }
