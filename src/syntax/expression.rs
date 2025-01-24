@@ -23,9 +23,24 @@ impl Display for Literal<'_> {
     }
 }
 
+pub enum UnaryOperation {
+    Minus,
+    Not,
+}
+
+impl Display for UnaryOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnaryOperation::Minus => write!(f, "-"),
+            UnaryOperation::Not => write!(f, "!"),
+        }
+    }
+}
+
 pub enum Expression<'a> {
     Literal(Literal<'a>),
     Grouping(Box<Expression<'a>>),
+    Unary(UnaryOperation, Box<Expression<'a>>),
 }
 
 impl Display for Expression<'_> {
@@ -33,6 +48,7 @@ impl Display for Expression<'_> {
         match self {
             Expression::Literal(literal) => write!(f, "{}", literal),
             Expression::Grouping(expression) => write!(f, "(group {})", expression),
+            Expression::Unary(operator, expression) => write!(f, "({} {})", operator, expression),
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::syntax::expression::{Expression, Literal};
+use crate::syntax::expression::{Expression, Literal, UnaryOperation};
 use crate::syntax::token::{Token, TokenType};
 
 pub struct Parser<'a> {
@@ -25,6 +25,8 @@ impl<'a> Parser<'a> {
             TokenType::String(string) => Expression::Literal(Literal::String(string)),
             TokenType::Nil => Expression::Literal(Literal::None),
             TokenType::LeftParen => Expression::Grouping(Box::new(self.parse_expression())),
+            TokenType::Minus => Expression::Unary(UnaryOperation::Minus, Box::new(self.parse_expression())),
+            TokenType::Bang => Expression::Unary(UnaryOperation::Not, Box::new(self.parse_expression())),
             _ => panic!("Not implemented"),
         }
     }
@@ -105,5 +107,23 @@ mod tests {
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
         assert_eq!(parser.parse_expression().to_string(), "(group (group foo))");
+    }
+
+    #[test]
+    fn test_unary_operator_not() {
+        let source = "!false";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(! false)");
+    }
+
+    #[test]
+    fn test_unary_operator_minus() {
+        let source = "-4";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(- 4.0)");
     }
 }
