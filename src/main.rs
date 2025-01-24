@@ -2,14 +2,14 @@ mod syntax;
 
 use std::env;
 use std::fs;
-use std::io::{self, Write};
 use std::process::exit;
 use crate::syntax::tokenizer::Scanner;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
-        writeln!(io::stderr(), "Usage: {} tokenize <filename>", args[0]).unwrap();
+        eprintln!("Usage: {} tokenize <filename>", args[0]);
+        eprintln!("Usage: {} parse <filename>", args[0]);
         return;
     }
 
@@ -39,8 +39,7 @@ fn main() {
             }
         }
         _ => {
-            writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
-            return;
+            eprintln!("Unknown command: {}", command);
         }
     }
 }
