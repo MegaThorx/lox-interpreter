@@ -28,8 +28,33 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expression(&mut self) -> Expression {
-        self.parse_term()
+        self.parse_comparison()
     }
+
+    fn parse_comparison(&mut self) -> Expression {
+        let mut expression = self.parse_term();
+
+        while matches!(self, TokenType::Greater, TokenType::GreaterEqual, TokenType::Less, TokenType::LessEqual) {
+            match self.previous().unwrap().token {
+                TokenType::Greater => {
+                    expression = Expression::Binary(BinaryOperation::Greater, Box::new(expression), Box::new(self.parse_factor()));
+                },
+                TokenType::GreaterEqual => {
+                    expression = Expression::Binary(BinaryOperation::GreaterEqual, Box::new(expression), Box::new(self.parse_factor()));
+                },
+                TokenType::Less => {
+                    expression = Expression::Binary(BinaryOperation::Less, Box::new(expression), Box::new(self.parse_factor()));
+                },
+                TokenType::LessEqual => {
+                    expression = Expression::Binary(BinaryOperation::LessEqual, Box::new(expression), Box::new(self.parse_factor()));
+                },
+                _ => unreachable!(),
+            }
+        }
+
+        expression
+    }
+
     fn parse_term(&mut self) -> Expression {
         let mut expression = self.parse_factor();
 
@@ -41,7 +66,7 @@ impl<'a> Parser<'a> {
                 TokenType::Minus => {
                     expression = Expression::Binary(BinaryOperation::Minus, Box::new(expression), Box::new(self.parse_factor()));
                 },
-                _ => break,
+                _ => unreachable!(),
             }
         }
 
@@ -59,7 +84,7 @@ impl<'a> Parser<'a> {
                 TokenType::Slash => {
                     expression = Expression::Binary(BinaryOperation::Divide, Box::new(expression), Box::new(self.parse_unary()));
                 },
-                _ => break,
+                _ => unreachable!(),
             }
         }
 
@@ -266,5 +291,14 @@ mod tests {
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
         assert_eq!(parser.parse_expression().to_string(), "(* (group (+ 1.0 2.0)) (group (- (- 3.0) (- 2.0))))");
+    }
+
+    #[test]
+    fn test_parser_comparison_operator() {
+        let source = "83 < 99 < 115";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(< (< 83.0 99.0) 115.0)");
     }
 }

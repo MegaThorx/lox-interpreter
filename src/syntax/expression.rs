@@ -42,6 +42,10 @@ pub enum BinaryOperation {
     Divide,
     Plus,
     Minus,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
 }
 
 impl Display for BinaryOperation {
@@ -51,6 +55,10 @@ impl Display for BinaryOperation {
             BinaryOperation::Divide => write!(f, "/"),
             BinaryOperation::Plus => write!(f, "+"),
             BinaryOperation::Minus => write!(f, "-"),
+            BinaryOperation::Greater => write!(f, ">"),
+            BinaryOperation::GreaterEqual => write!(f, ">="),
+            BinaryOperation::Less => write!(f, "<"),
+            BinaryOperation::LessEqual => write!(f, "<="),
         }
     }
 }
