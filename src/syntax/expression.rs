@@ -40,6 +40,8 @@ impl Display for UnaryOperation {
 pub enum BinaryOperation {
     Multiply,
     Divide,
+    Plus,
+    Minus,
 }
 
 impl Display for BinaryOperation {
@@ -47,6 +49,8 @@ impl Display for BinaryOperation {
         match self {
             BinaryOperation::Multiply => write!(f, "*"),
             BinaryOperation::Divide => write!(f, "/"),
+            BinaryOperation::Plus => write!(f, "+"),
+            BinaryOperation::Minus => write!(f, "-"),
         }
     }
 }

@@ -28,7 +28,24 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expression(&mut self) -> Expression {
-        self.parse_factor()
+        self.parse_term()
+    }
+    fn parse_term(&mut self) -> Expression {
+        let mut expression = self.parse_factor();
+
+        while matches!(self, TokenType::Plus, TokenType::Minus) {
+            match self.previous().unwrap().token {
+                TokenType::Plus => {
+                    expression = Expression::Binary(BinaryOperation::Plus, Box::new(expression), Box::new(self.parse_factor()));
+                },
+                TokenType::Minus => {
+                    expression = Expression::Binary(BinaryOperation::Minus, Box::new(expression), Box::new(self.parse_factor()));
+                },
+                _ => break,
+            }
+        }
+
+        expression
     }
 
     fn parse_factor(&mut self) -> Expression {
@@ -79,7 +96,7 @@ impl<'a> Parser<'a> {
                 if !self.check(TokenType::RightParen) {
                     panic!("Expected right parenthesis");
                 }
-                
+
                 self.advance();
 
                 Expression::Grouping(Box::new(expression))
@@ -87,7 +104,7 @@ impl<'a> Parser<'a> {
             _ => panic!("Not implemented {}", token.token),
         }
     }
-    
+
     fn consume(&mut self) -> &Token<'a> {
         self.advance();
         &self.tokens[self.current - 1]
@@ -231,5 +248,23 @@ mod tests {
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
         assert_eq!(parser.parse_expression().to_string(), "(* (group (/ 1.0 2.0)) (group (/ (- 3.0) (- 2.0))))");
+    }
+
+    #[test]
+    fn test_parser_arithmetic_operator_minus_and_plus() {
+        let source = "52 + 80 - 94";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(- (+ 52.0 80.0) 94.0)");
+    }
+
+    #[test]
+    fn test_parser_arithmetic_operator_minus_and_plus_complex() {
+        let source = "(1 + 2) * (-3 - -2)";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(* (group (+ 1.0 2.0)) (group (- (- 3.0) (- 2.0))))");
     }
 }
