@@ -1,13 +1,13 @@
 use std::fmt::Display;
 
-pub enum Literal<'a> {
+pub enum Literal {
     Bool(bool),
     Number(f64),
-    String(&'a str),
+    String(String),
     None,
 }
 
-impl Display for Literal<'_> {
+impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Literal::Bool(bool) => write!(f, "{}", bool),
@@ -37,18 +37,34 @@ impl Display for UnaryOperation {
     }
 }
 
-pub enum Expression<'a> {
-    Literal(Literal<'a>),
-    Grouping(Box<Expression<'a>>),
-    Unary(UnaryOperation, Box<Expression<'a>>),
+pub enum BinaryOperation {
+    Multiply,
+    Divide,
 }
 
-impl Display for Expression<'_> {
+impl Display for BinaryOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinaryOperation::Multiply => write!(f, "*"),
+            BinaryOperation::Divide => write!(f, "/"),
+        }
+    }
+}
+
+pub enum Expression {
+    Literal(Literal),
+    Grouping(Box<Expression>),
+    Unary(UnaryOperation, Box<Expression>),
+    Binary(BinaryOperation, Box<Expression>, Box<Expression>),
+}
+
+impl Display for Expression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Expression::Literal(literal) => write!(f, "{}", literal),
             Expression::Grouping(expression) => write!(f, "(group {})", expression),
             Expression::Unary(operator, expression) => write!(f, "({} {})", operator, expression),
+            Expression::Binary(operator, left, right) => write!(f, "({} {} {})", operator, left, right),
         }
     }
 }
