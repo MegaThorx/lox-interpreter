@@ -95,7 +95,7 @@ fn main() {
                     println!("{}", result.unwrap());
                 } else {
                     eprintln!("{}", result.err().unwrap());
-                    exit(65);
+                    exit(70);
                 }
             } else {
                 eprintln!("{}", expression.err().unwrap());
