@@ -28,7 +28,25 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expression(&mut self) -> Expression {
-        self.parse_comparison()
+        self.parse_equality()
+    }
+
+    fn parse_equality(&mut self) -> Expression {
+        let mut expression = self.parse_comparison();
+
+        while matches!(self, TokenType::EqualEqual, TokenType::BangEqual) {
+            match self.previous().unwrap().token {
+                TokenType::EqualEqual => {
+                    expression = Expression::Binary(BinaryOperation::Equal, Box::new(expression), Box::new(self.parse_comparison()));
+                },
+                TokenType::BangEqual => {
+                    expression = Expression::Binary(BinaryOperation::NotEqual, Box::new(expression), Box::new(self.parse_comparison()));
+                },
+                _ => unreachable!(),
+            }
+        }
+
+        expression
     }
 
     fn parse_comparison(&mut self) -> Expression {
@@ -300,5 +318,23 @@ mod tests {
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
         assert_eq!(parser.parse_expression().to_string(), "(< (< 83.0 99.0) 115.0)");
+    }
+
+    #[test]
+    fn test_parser_equal_operator() {
+        let source = "\"baz\" == \"baz\"";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(== baz baz)");
+    }
+
+    #[test]
+    fn test_parser_not_equal_operator() {
+        let source = "\"baz\" != \"baz\"";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().to_string(), "(!= baz baz)");
     }
 }

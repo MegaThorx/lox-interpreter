@@ -46,6 +46,8 @@ pub enum BinaryOperation {
     GreaterEqual,
     Less,
     LessEqual,
+    Equal,
+    NotEqual,
 }
 
 impl Display for BinaryOperation {
@@ -59,6 +61,8 @@ impl Display for BinaryOperation {
             BinaryOperation::GreaterEqual => write!(f, ">="),
             BinaryOperation::Less => write!(f, "<"),
             BinaryOperation::LessEqual => write!(f, "<="),
+            BinaryOperation::Equal => write!(f, "=="),
+            BinaryOperation::NotEqual => write!(f, "!="),
         }
     }
 }
