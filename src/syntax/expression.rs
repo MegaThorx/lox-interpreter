@@ -23,6 +23,26 @@ impl Display for Literal {
     }
 }
 
+impl Literal {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Literal::Bool(bool) => *bool,
+            Literal::None => false,
+            _ => true,
+        }
+    }
+    
+    pub fn is_equal(&self, other: &Literal) -> bool {
+        match (self, other) {
+            (Literal::Bool(left), Literal::Bool(right)) => left == right,
+            (Literal::Number(left), Literal::Number(right)) => left == right,
+            (Literal::String(left), Literal::String(right)) => left == right,
+            (Literal::None, Literal::None) => true,
+            _ => false,
+        }
+    }
+}
+
 pub enum UnaryOperation {
     Minus,
     Not,
