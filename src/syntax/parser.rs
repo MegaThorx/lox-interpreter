@@ -27,96 +27,108 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse_expression(&mut self) -> Expression {
+    pub fn parse_expression(&mut self) -> Result<Expression, String> {
         self.parse_equality()
     }
 
-    fn parse_equality(&mut self) -> Expression {
-        let mut expression = self.parse_comparison();
+    fn parse_equality(&mut self) -> Result<Expression, String> {
+        let mut expression = self.parse_comparison()?;
 
         while matches!(self, TokenType::EqualEqual, TokenType::BangEqual) {
             match self.previous().unwrap().token {
                 TokenType::EqualEqual => {
-                    expression = Expression::Binary(BinaryOperation::Equal, Box::new(expression), Box::new(self.parse_comparison()));
+                    let right = self.parse_comparison()?;
+                    expression = Expression::Binary(BinaryOperation::Equal, Box::new(expression), Box::new(right));
                 },
                 TokenType::BangEqual => {
-                    expression = Expression::Binary(BinaryOperation::NotEqual, Box::new(expression), Box::new(self.parse_comparison()));
+                    let right = self.parse_comparison()?;
+                    expression = Expression::Binary(BinaryOperation::NotEqual, Box::new(expression), Box::new(right));
                 },
                 _ => unreachable!(),
             }
         }
 
-        expression
+        Ok(expression)
     }
 
-    fn parse_comparison(&mut self) -> Expression {
-        let mut expression = self.parse_term();
+    fn parse_comparison(&mut self) -> Result<Expression, String> {
+        let mut expression = self.parse_term()?;
 
         while matches!(self, TokenType::Greater, TokenType::GreaterEqual, TokenType::Less, TokenType::LessEqual) {
             match self.previous().unwrap().token {
                 TokenType::Greater => {
-                    expression = Expression::Binary(BinaryOperation::Greater, Box::new(expression), Box::new(self.parse_factor()));
+                    let right = self.parse_term()?;
+                    expression = Expression::Binary(BinaryOperation::Greater, Box::new(expression), Box::new(right));
                 },
                 TokenType::GreaterEqual => {
-                    expression = Expression::Binary(BinaryOperation::GreaterEqual, Box::new(expression), Box::new(self.parse_factor()));
+                    let right = self.parse_term()?;
+                    expression = Expression::Binary(BinaryOperation::GreaterEqual, Box::new(expression), Box::new(right));
                 },
                 TokenType::Less => {
-                    expression = Expression::Binary(BinaryOperation::Less, Box::new(expression), Box::new(self.parse_factor()));
+                    let right = self.parse_term()?;
+                    expression = Expression::Binary(BinaryOperation::Less, Box::new(expression), Box::new(right));
                 },
                 TokenType::LessEqual => {
-                    expression = Expression::Binary(BinaryOperation::LessEqual, Box::new(expression), Box::new(self.parse_factor()));
+                    let right = self.parse_term()?;
+                    expression = Expression::Binary(BinaryOperation::LessEqual, Box::new(expression), Box::new(right));
                 },
                 _ => unreachable!(),
             }
         }
 
-        expression
+        Ok(expression)
     }
 
-    fn parse_term(&mut self) -> Expression {
-        let mut expression = self.parse_factor();
+    fn parse_term(&mut self) -> Result<Expression, String> {
+        let mut expression = self.parse_factor()?;
 
         while matches!(self, TokenType::Plus, TokenType::Minus) {
             match self.previous().unwrap().token {
                 TokenType::Plus => {
-                    expression = Expression::Binary(BinaryOperation::Plus, Box::new(expression), Box::new(self.parse_factor()));
+                    let right = self.parse_factor()?;
+                    expression = Expression::Binary(BinaryOperation::Plus, Box::new(expression), Box::new(right));
                 },
                 TokenType::Minus => {
-                    expression = Expression::Binary(BinaryOperation::Minus, Box::new(expression), Box::new(self.parse_factor()));
+                    let right = self.parse_factor()?;
+                    expression = Expression::Binary(BinaryOperation::Minus, Box::new(expression), Box::new(right));
                 },
                 _ => unreachable!(),
             }
         }
 
-        expression
+        Ok(expression)
     }
 
-    fn parse_factor(&mut self) -> Expression {
-        let mut expression = self.parse_unary();
+    fn parse_factor(&mut self) -> Result<Expression, String> {
+        let mut expression = self.parse_unary()?;
 
         while matches!(self, TokenType::Star, TokenType::Slash) {
             match self.previous().unwrap().token {
                 TokenType::Star => {
-                    expression = Expression::Binary(BinaryOperation::Multiply, Box::new(expression), Box::new(self.parse_unary()));
+                    let right = self.parse_unary()?;
+                    expression = Expression::Binary(BinaryOperation::Multiply, Box::new(expression), Box::new(right));
                 },
                 TokenType::Slash => {
-                    expression = Expression::Binary(BinaryOperation::Divide, Box::new(expression), Box::new(self.parse_unary()));
+                    let right = self.parse_unary()?;
+                    expression = Expression::Binary(BinaryOperation::Divide, Box::new(expression), Box::new(right));
                 },
                 _ => unreachable!(),
             }
         }
 
-        expression
+        Ok(expression)
     }
 
-    fn parse_unary(&mut self) -> Expression {
+    fn parse_unary(&mut self) -> Result<Expression, String> {
         if matches!(self, TokenType::Minus, TokenType::Bang) {
             match self.previous().unwrap().token {
                 TokenType::Minus => {
-                    return Expression::Unary(UnaryOperation::Minus, Box::new(self.parse_unary()))
+                    let expression = self.parse_unary()?;
+                    return Ok(Expression::Unary(UnaryOperation::Minus, Box::new(expression)))
                 },
                 TokenType::Bang => {
-                    return Expression::Unary(UnaryOperation::Not, Box::new(self.parse_unary()))
+                    let expression = self.parse_unary()?;
+                    return Ok(Expression::Unary(UnaryOperation::Not, Box::new(expression)));
                 },
                 _ => unreachable!(),
             }
@@ -125,26 +137,33 @@ impl<'a> Parser<'a> {
         self.parse_primary()
     }
 
-    fn parse_primary(&mut self) -> Expression {
+    fn parse_primary(&mut self) -> Result<Expression, String> {
         let token = self.consume();
         match token.token {
-            TokenType::True => Expression::Literal(Literal::Bool(true)),
-            TokenType::False => Expression::Literal(Literal::Bool(false)),
-            TokenType::Number(number)  => Expression::Literal(Literal::Number(number)),
-            TokenType::String(string) => Expression::Literal(Literal::String(string.to_string())),
-            TokenType::Nil => Expression::Literal(Literal::None),
+            TokenType::True => Ok(Expression::Literal(Literal::Bool(true))),
+            TokenType::False => Ok(Expression::Literal(Literal::Bool(false))),
+            TokenType::Number(number) => Ok(Expression::Literal(Literal::Number(number))),
+            TokenType::String(string) => Ok(Expression::Literal(Literal::String(string.to_string()))),
+            TokenType::Nil => Ok(Expression::Literal(Literal::None)),
             TokenType::LeftParen => {
-                let expression = self.parse_expression();
+                let expression = self.parse_expression()?;
 
                 if !self.check(TokenType::RightParen) {
-                    panic!("Expected right parenthesis");
+                    let token = self.current();
+                    return Err(match token.token {
+                        TokenType::Eof => format!("[line {}] Error at end: Expect expression.", token.line),
+                        _ => format!("[line {}] Error at '{}': Expect expression.", token.line, token.lexeme)
+                    });
                 }
 
                 self.advance();
 
-                Expression::Grouping(Box::new(expression))
+                Ok(Expression::Grouping(Box::new(expression)))
             },
-            _ => panic!("Not implemented {}", token.token),
+            _ => Err(match token.token {
+                TokenType::Eof => format!("[line {}] Error at end: Expect expression.", token.line),
+                _ => format!("[line {}] Error at '{}': Expect expression.", token.line, token.lexeme)
+            }),
         }
     }
 
@@ -160,8 +179,12 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn current(&self) -> &Token<'a> {
+        &self.tokens[self.current]
+    }
+
     fn check(&self, token_type: TokenType) -> bool {
-        self.tokens[self.current].token == token_type
+        self.current().token == token_type
     }
 
     fn advance(&mut self) {
@@ -182,7 +205,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "true");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "true");
     }
 
     #[test]
@@ -191,7 +214,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "false");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "false");
     }
 
     #[test]
@@ -200,7 +223,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "nil");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "nil");
     }
 
     #[test]
@@ -209,7 +232,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "123.0");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "123.0");
     }
 
     #[test]
@@ -218,7 +241,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "123.123");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "123.123");
     }
 
     #[test]
@@ -227,7 +250,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "test");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "test");
     }
 
     #[test]
@@ -236,7 +259,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(group foo)");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(group foo)");
     }
 
     #[test]
@@ -245,7 +268,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(group (group foo))");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(group (group foo))");
     }
 
     #[test]
@@ -254,7 +277,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(! false)");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(! false)");
     }
 
     #[test]
@@ -263,7 +286,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(- 4.0)");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(- 4.0)");
     }
 
     #[test]
@@ -272,7 +295,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(/ (* 16.0 38.0) 58.0)");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(/ (* 16.0 38.0) 58.0)");
     }
 
     #[test]
@@ -281,7 +304,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(group (/ (* 15.0 (- 78.0)) (group (* 15.0 40.0))))");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(group (/ (* 15.0 (- 78.0)) (group (* 15.0 40.0))))");
     }
 
     #[test]
@@ -290,7 +313,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(* (group (/ 1.0 2.0)) (group (/ (- 3.0) (- 2.0))))");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(* (group (/ 1.0 2.0)) (group (/ (- 3.0) (- 2.0))))");
     }
 
     #[test]
@@ -299,7 +322,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(- (+ 52.0 80.0) 94.0)");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(- (+ 52.0 80.0) 94.0)");
     }
 
     #[test]
@@ -308,7 +331,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(* (group (+ 1.0 2.0)) (group (- (- 3.0) (- 2.0))))");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(* (group (+ 1.0 2.0)) (group (- (- 3.0) (- 2.0))))");
     }
 
     #[test]
@@ -317,7 +340,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(< (< 83.0 99.0) 115.0)");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(< (< 83.0 99.0) 115.0)");
     }
 
     #[test]
@@ -326,7 +349,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(== baz baz)");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(== baz baz)");
     }
 
     #[test]
@@ -335,6 +358,24 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().to_string(), "(!= baz baz)");
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(!= baz baz)");
+    }
+
+    #[test]
+    fn test_parser_syntax_error() {
+        let source = "(72 +)";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at ')': Expect expression.");
+    }
+
+    #[test]
+    fn test_parser_syntax_error_2() {
+        let source = "(72 +";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at end: Expect expression.");
     }
 }

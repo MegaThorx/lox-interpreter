@@ -57,7 +57,14 @@ fn main() {
             }
 
             let mut parser = Parser::new(tokens);
-            println!("{}", parser.parse_expression());
+            let expression = parser.parse_expression();
+
+            if expression.is_ok() {
+                println!("{}", expression.unwrap());
+            } else {
+                eprintln!("{}", expression.err().unwrap());
+                exit(65);
+            }
         },
         _ => {
             eprintln!("Unknown command: {}", command);
