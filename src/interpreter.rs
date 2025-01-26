@@ -59,43 +59,29 @@ fn evaluate_expression(expression: Expression) -> Result<Literal, String> {
             }
         },
         Expression::Binary(operation, left, right) => {
-            match operation {
-                BinaryOperation::Multiply => match (evaluate_expression(*left)?, evaluate_expression(*right)?) {
-                    (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left * right)),
-                    _ => Err("Operands must be a numbers.".to_string()),
-                },
-                BinaryOperation::Divide => match (evaluate_expression(*left)?, evaluate_expression(*right)?) {
-                    (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left / right)),
-                    _ => Err("Operands must be a numbers.".to_string()),
-                },
-                BinaryOperation::Plus => match (evaluate_expression(*left)?, evaluate_expression(*right)?) {
-                    (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left + right)),
-                    (Literal::String(left), Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
-                    _ => Err("Operands must be a numbers.".to_string()),
-                },
-                BinaryOperation::Minus => match (evaluate_expression(*left)?, evaluate_expression(*right)?) {
-                    (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left - right)),
-                    _ => Err("Operands must be a numbers.".to_string()),
-                },
-                BinaryOperation::Greater => match (evaluate_expression(*left)?, evaluate_expression(*right)?) {
-                    (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Bool(left > right)),
-                    _ => Err("Operands must be a numbers.".to_string()),
-                },
-                BinaryOperation::GreaterEqual => match (evaluate_expression(*left)?, evaluate_expression(*right)?) {
-                    (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Bool(left >= right)),
-                    _ => Err("Operands must be a numbers.".to_string()),
-                },
-                BinaryOperation::Less => match (evaluate_expression(*left)?, evaluate_expression(*right)?) {
-                    (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Bool(left < right)),
-                    _ => Err("Operands must be a numbers.".to_string()),
-                },
-                BinaryOperation::LessEqual => match (evaluate_expression(*left)?, evaluate_expression(*right)?) {
-                    (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Bool(left <= right)),
-                    _ => Err("Operands must be a numbers.".to_string()),
-                },
-                BinaryOperation::Equal => Ok(Literal::Bool(evaluate_expression(*left)?.is_equal(&evaluate_expression(*right)?))),
-                BinaryOperation::NotEqual => Ok(Literal::Bool(!evaluate_expression(*left)?.is_equal(&evaluate_expression(*right)?))),
-            }
+            let (left, right) = (evaluate_expression(*left)?, evaluate_expression(*right)?);
+
+            Ok(match operation {
+                BinaryOperation::Equal => Literal::Bool(left.is_equal(&right)),
+                BinaryOperation::NotEqual => Literal::Bool(!left.is_equal(&right)),
+                operation => match (left, right) {
+                    (Literal::Number(left), Literal::Number(right)) => match operation {
+                        BinaryOperation::Multiply => Literal::Number(left * right),
+                        BinaryOperation::Divide => Literal::Number(left / right),
+                        BinaryOperation::Plus => Literal::Number(left + right),
+                        BinaryOperation::Minus => Literal::Number(left - right),
+                        BinaryOperation::Greater => Literal::Bool(left > right),
+                        BinaryOperation::GreaterEqual => Literal::Bool(left >= right),
+                        BinaryOperation::Less => Literal::Bool(left < right),
+                        _ => Literal::Bool(left <= right), // Last one can only be LessEqual
+                    },
+                    (Literal::String(left), Literal::String(right)) => match operation {
+                        BinaryOperation::Plus => Literal::String(format!("{}{}", left, right)),
+                        _ => return Err("Operands must be a numbers.".to_string()),
+                    }
+                    (_, _) => return Err("Operands must be a numbers.".to_string())
+                }
+            })
         },
     }
 }
@@ -224,6 +210,15 @@ mod tests {
         let mut parser = Parser::new(tokens);
         let result = evaluate(parser.parse_expression().unwrap());
         assert_eq!(result.unwrap().to_string(), "false");
+    }
+    #[test]
+    fn test_evaluate_unary_not_nil() {
+        let source = "!nil";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        let result = evaluate(parser.parse_expression().unwrap());
+        assert_eq!(result.unwrap().to_string(), "true");
     }
 
     #[test]
@@ -409,6 +404,36 @@ mod tests {
     #[test]
     fn test_evaluate_equality_equals_2() {
         let source = "\"foo\" == \"foo\"";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        let result = evaluate(parser.parse_expression().unwrap());
+        assert_eq!(result.unwrap().to_string(), "true");
+    }
+
+    #[test]
+    fn test_evaluate_equality_equals_3() {
+        let source = "true == true";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        let result = evaluate(parser.parse_expression().unwrap());
+        assert_eq!(result.unwrap().to_string(), "true");
+    }
+
+    #[test]
+    fn test_evaluate_equality_equals_4() {
+        let source = "5 == 5";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        let result = evaluate(parser.parse_expression().unwrap());
+        assert_eq!(result.unwrap().to_string(), "true");
+    }
+
+    #[test]
+    fn test_evaluate_equality_equals_5() {
+        let source = "nil == nil";
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);

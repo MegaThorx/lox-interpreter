@@ -35,16 +35,9 @@ impl<'a> Parser<'a> {
         let mut expression = self.parse_comparison()?;
 
         while matches!(self, TokenType::EqualEqual, TokenType::BangEqual) {
-            match self.previous().unwrap().token {
-                TokenType::EqualEqual => {
-                    let right = self.parse_comparison()?;
-                    expression = Expression::Binary(BinaryOperation::Equal, Box::new(expression), Box::new(right));
-                },
-                TokenType::BangEqual => {
-                    let right = self.parse_comparison()?;
-                    expression = Expression::Binary(BinaryOperation::NotEqual, Box::new(expression), Box::new(right));
-                },
-                _ => unreachable!(),
+            expression = match self.previous().token {
+                TokenType::EqualEqual => Expression::Binary(BinaryOperation::Equal, Box::new(expression), Box::new(self.parse_comparison()?)),
+                _ => Expression::Binary(BinaryOperation::NotEqual, Box::new(expression), Box::new(self.parse_comparison()?)), // Last one can only be BangEqual
             }
         }
 
@@ -55,24 +48,11 @@ impl<'a> Parser<'a> {
         let mut expression = self.parse_term()?;
 
         while matches!(self, TokenType::Greater, TokenType::GreaterEqual, TokenType::Less, TokenType::LessEqual) {
-            match self.previous().unwrap().token {
-                TokenType::Greater => {
-                    let right = self.parse_term()?;
-                    expression = Expression::Binary(BinaryOperation::Greater, Box::new(expression), Box::new(right));
-                },
-                TokenType::GreaterEqual => {
-                    let right = self.parse_term()?;
-                    expression = Expression::Binary(BinaryOperation::GreaterEqual, Box::new(expression), Box::new(right));
-                },
-                TokenType::Less => {
-                    let right = self.parse_term()?;
-                    expression = Expression::Binary(BinaryOperation::Less, Box::new(expression), Box::new(right));
-                },
-                TokenType::LessEqual => {
-                    let right = self.parse_term()?;
-                    expression = Expression::Binary(BinaryOperation::LessEqual, Box::new(expression), Box::new(right));
-                },
-                _ => unreachable!(),
+            expression = match self.previous().token {
+                TokenType::Greater => Expression::Binary(BinaryOperation::Greater, Box::new(expression), Box::new(self.parse_term()?)),
+                TokenType::GreaterEqual => Expression::Binary(BinaryOperation::GreaterEqual, Box::new(expression), Box::new(self.parse_term()?)),
+                TokenType::Less => Expression::Binary(BinaryOperation::Less, Box::new(expression), Box::new(self.parse_term()?)),
+                _ => Expression::Binary(BinaryOperation::LessEqual, Box::new(expression), Box::new(self.parse_term()?)), // Last one can only be LessEqual
             }
         }
 
@@ -83,16 +63,9 @@ impl<'a> Parser<'a> {
         let mut expression = self.parse_factor()?;
 
         while matches!(self, TokenType::Plus, TokenType::Minus) {
-            match self.previous().unwrap().token {
-                TokenType::Plus => {
-                    let right = self.parse_factor()?;
-                    expression = Expression::Binary(BinaryOperation::Plus, Box::new(expression), Box::new(right));
-                },
-                TokenType::Minus => {
-                    let right = self.parse_factor()?;
-                    expression = Expression::Binary(BinaryOperation::Minus, Box::new(expression), Box::new(right));
-                },
-                _ => unreachable!(),
+            expression = match self.previous().token {
+                TokenType::Plus => Expression::Binary(BinaryOperation::Plus, Box::new(expression), Box::new(self.parse_factor()?)),
+                _ => Expression::Binary(BinaryOperation::Minus, Box::new(expression), Box::new(self.parse_factor()?)), // Last one can only be Minus
             }
         }
 
@@ -103,16 +76,9 @@ impl<'a> Parser<'a> {
         let mut expression = self.parse_unary()?;
 
         while matches!(self, TokenType::Star, TokenType::Slash) {
-            match self.previous().unwrap().token {
-                TokenType::Star => {
-                    let right = self.parse_unary()?;
-                    expression = Expression::Binary(BinaryOperation::Multiply, Box::new(expression), Box::new(right));
-                },
-                TokenType::Slash => {
-                    let right = self.parse_unary()?;
-                    expression = Expression::Binary(BinaryOperation::Divide, Box::new(expression), Box::new(right));
-                },
-                _ => unreachable!(),
+            expression = match self.previous().token {
+                TokenType::Star => Expression::Binary(BinaryOperation::Multiply, Box::new(expression), Box::new(self.parse_unary()?)),
+                _ => Expression::Binary(BinaryOperation::Divide, Box::new(expression), Box::new(self.parse_unary()?)), // Last one can only be Slash
             }
         }
 
@@ -121,17 +87,10 @@ impl<'a> Parser<'a> {
 
     fn parse_unary(&mut self) -> Result<Expression, String> {
         if matches!(self, TokenType::Minus, TokenType::Bang) {
-            match self.previous().unwrap().token {
-                TokenType::Minus => {
-                    let expression = self.parse_unary()?;
-                    return Ok(Expression::Unary(UnaryOperation::Minus, Box::new(expression)))
-                },
-                TokenType::Bang => {
-                    let expression = self.parse_unary()?;
-                    return Ok(Expression::Unary(UnaryOperation::Not, Box::new(expression)));
-                },
-                _ => unreachable!(),
-            }
+            return Ok(match self.previous().token {
+                TokenType::Minus => Expression::Unary(UnaryOperation::Minus, Box::new(self.parse_unary()?)),
+                _ => Expression::Unary(UnaryOperation::Not, Box::new(self.parse_unary()?)), // Last one can only be Bang
+            });
         }
 
         self.parse_primary()
@@ -172,11 +131,8 @@ impl<'a> Parser<'a> {
         &self.tokens[self.current - 1]
     }
 
-    fn previous(&self) -> Option<&Token<'a>> {
-        match self.current > 0 {
-            true => Some(&self.tokens[self.current - 1]),
-            _ => None
-        }
+    fn previous(&self) -> &Token<'a> {
+        &self.tokens[self.current - 1]
     }
 
     fn current(&self) -> &Token<'a> {
@@ -344,6 +300,24 @@ mod tests {
     }
 
     #[test]
+    fn test_parser_comparison_operator_2() {
+        let source = "83 > 99 > 115";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(> (> 83.0 99.0) 115.0)");
+    }
+
+    #[test]
+    fn test_parser_comparison_operator_3() {
+        let source = "83 >= 99 <= 115";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().unwrap().to_string(), "(<= (>= 83.0 99.0) 115.0)");
+    }
+
+    #[test]
     fn test_parser_equal_operator() {
         let source = "\"baz\" == \"baz\"";
         let mut scanner = Scanner::new(source);
@@ -377,5 +351,23 @@ mod tests {
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
         assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at end: Expect expression.");
+    }
+
+    #[test]
+    fn test_parser_syntax_error_3() {
+        let source = "(72 + 42";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at end: Expect expression.");
+    }
+
+    #[test]
+    fn test_parser_syntax_error_4() {
+        let source = "(72 }";
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at '}': Expect expression.");
     }
 }
