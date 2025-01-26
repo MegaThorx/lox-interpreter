@@ -40,7 +40,9 @@ pub fn run(statements: Vec<Statement>) -> Result<(), String>{
     for statement in statements {
         match statement {
             Statement::Print(expression) => println!("{}", evaluate(expression)?),
-            _ => panic!("Not implemented")
+            Statement::Expression(expression) => {
+                evaluate(expression)?;
+            }
         }
     }
 
