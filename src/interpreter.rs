@@ -1,5 +1,6 @@
 ﻿use std::fmt::Display;
 use crate::syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
+use crate::syntax::statement::Statement;
 
 pub enum Value {
     Bool(bool),
@@ -33,6 +34,17 @@ impl Value {
             Literal::None => Value::None,
         }
     }
+}
+
+pub fn run(statements: Vec<Statement>) -> Result<(), String>{
+    for statement in statements {
+        match statement {
+            Statement::Print(expression) => println!("{}", evaluate(expression)?),
+            _ => panic!("Not implemented")
+        }
+    }
+
+    Ok(())
 }
 
 pub fn evaluate(expression: Expression) -> Result<Value, String> {
@@ -88,6 +100,7 @@ fn evaluate_expression(expression: Expression) -> Result<Literal, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::stdout;
     use crate::interpreter::evaluate;
     use crate::syntax::parser::Parser;
     use crate::syntax::tokenizer::Scanner;

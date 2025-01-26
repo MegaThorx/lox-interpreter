@@ -1,4 +1,5 @@
 use crate::syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
+use crate::syntax::statement::Statement;
 use crate::syntax::token::{Token, TokenType};
 
 pub struct Parser<'a> {
@@ -25,6 +26,39 @@ impl<'a> Parser<'a> {
             tokens,
             current: 0,
         }
+    }
+
+    pub fn parse(&mut self) -> Result<Vec<Statement>, String> {
+        let mut statements = Vec::<Statement>::new();
+
+        while !self.check(TokenType::Eof) {
+            statements.push(self.parse_statement()?);
+        }
+
+        Ok(statements)
+    }
+
+    fn parse_statement(&mut self) -> Result<Statement, String> {
+        let mut is_value = false;
+
+        let statement = if matches!(self, TokenType::Print) {
+            is_value = true;
+            Statement::Print(self.parse_expression()?)
+        } else {
+            Statement::Expression(self.parse_expression()?)
+        };
+
+        if !self.check(TokenType::Semicolon) {
+            let token = self.current();
+            return Err(match is_value {
+                true => format!("[line {}] Expect ';' after expression.", token.line),
+                false => format!("[line {}] Expect ';' after value.", token.line),
+            });
+        }
+
+        self.advance();
+
+        Ok(statement)
     }
 
     pub fn parse_expression(&mut self) -> Result<Expression, String> {
@@ -146,8 +180,6 @@ impl<'a> Parser<'a> {
     fn advance(&mut self) {
         self.current += 1;
     }
-
-
 }
 
 #[cfg(test)]
