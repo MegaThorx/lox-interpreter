@@ -102,557 +102,160 @@ fn evaluate_expression(expression: Expression) -> Result<Literal, String> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::stdout;
-    use crate::interpreter::evaluate;
+    use rstest::*;
+    use crate::interpreter::{evaluate, Value};
     use crate::syntax::parser::Parser;
     use crate::syntax::tokenizer::Scanner;
 
-    #[test]
-    fn test_evaluate_bool_true() {
-        let source = "true";
+    fn run(source: &str) -> Result<Value, String> {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
+        evaluate(parser.parse_expression()?)
     }
 
-    #[test]
-    fn test_evaluate_bool_false() {
-        let source = "false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "false");
+    #[rstest]
+    #[case("true", "true")]
+    #[case("false", "false")]
+    #[case("nil", "nil")]
+    fn test_evaluate_booleans_and_nil(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_nil() {
-        let source = "nil";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "nil");
+    #[rstest]
+    #[case("\"hello world!\"", "hello world!")]
+    #[case("\"foo!\"", "foo!")]
+    #[case("\"hello\non\nthe\nother\nside\"", "hello\non\nthe\nother\nside")]
+    fn test_evaluate_string(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_string() {
-        let source = "\"hello world!\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "hello world!");
+    #[rstest]
+    #[case("10.40", "10.4")]
+    #[case("10.41", "10.41")]
+    #[case("54.12300", "54.123")]
+    fn test_evaluate_float(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_float() {
-        let source = "10.40";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "10.4");
+    #[rstest]
+    #[case("10", "10")]
+    #[case("123", "123")]
+    #[case("54", "54")]
+    fn test_evaluate_integer(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_integer() {
-        let source = "10";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "10");
+    #[rstest]
+    #[case("(\"hello world!\")", "hello world!")]
+    #[case("((\"hello world!\"))", "hello world!")]
+    #[case("(true)", "true")]
+    #[case("(10.40)", "10.4")]
+    #[case("((false))", "false")]
+    fn test_evaluate_group(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_group_string() {
-        let source = "(\"hello world!\")";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "hello world!");
+    #[rstest]
+    #[case("-73", "-73")]
+    #[case("--73", "73")]
+    #[case("!true", "false")]
+    #[case("!false", "true")]
+    #[case("!nil", "true")]
+    #[case("!10.40", "false")]
+    #[case("!\"hello\"", "false")]
+    #[case("!!false", "false")]
+    #[case("!(!false)", "false")]
+    fn test_evaluate_unary(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_group_bool_true() {
-        let source = "(true)";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
+    #[rstest]
+    #[case("42 / 5", "8.4")]
+    #[case("18 * 3 / (3 * 6)", "3")]
+    #[case("(10.40 * 2) / 2", "10.4")]
+    #[case("70 - 65", "5")]
+    #[case("69 - 93", "-24")]
+    #[case("10.40 - 2", "8.4")]
+    #[case("23 + 28 - (-(61 - 99))", "13")]
+    fn test_evaluate_arithmetic(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_group_number() {
-        let source = "(10.40)";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "10.4");
+    #[rstest]
+    #[case("\"hello\" + \" world!\"", "hello world!")]
+    #[case("\"foo\" + \"bar\"", "foobar")]
+    #[case("\"42\" + \"24\"", "4224")]
+    fn test_evaluate_string_concatenation(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_group_group_bool_false() {
-        let source = "((false))";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "false");
+    #[rstest]
+    #[case("57 > -65", "true")]
+    #[case("57 > 65", "false")]
+    #[case("11 >= 11", "true")]
+    #[case("12 >= 11", "true")]
+    #[case("10 >= 11", "false")]
+    #[case("57 > -65", "true")]
+    #[case("(54 - 67) >= -(114 / 57 + 11)", "true")]
+    #[case("57 < 65", "true")]
+    #[case("57 < -65", "false")]
+    #[case("11 <= 11", "true")]
+    #[case("12 <= 11", "false")]
+    #[case("10 <= 11", "true")]
+    fn test_evaluate_relational(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_unary_minus_number() {
-        let source = "-73";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "-73");
+    #[rstest]
+    #[case("\"hello\" == \"world\"", "false")]
+    #[case("\"foo\" == \"foo\"", "true")]
+    #[case("true == true", "true")]
+    #[case("false == false", "true")]
+    #[case("true == false", "false")]
+    #[case("5 == 5", "true")]
+    #[case("5 == 6", "false")]
+    #[case("5.5 == 5.5", "true")]
+    #[case("5.5 == 6.5", "false")]
+    #[case("nil == nil", "true")]
+    fn test_evaluate_equality_equals(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_unary_not_bool() {
-        let source = "!true";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "false");
-    }
-    #[test]
-    fn test_evaluate_unary_not_nil() {
-        let source = "!nil";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
+    #[rstest]
+    #[case("\"hello\" != \"world\"", "true")]
+    #[case("\"foo\" != \"foo\"", "false")]
+    #[case("true != true", "false")]
+    #[case("false != false", "false")]
+    #[case("true != false", "true")]
+    #[case("5 != 5", "false")]
+    #[case("5 != 6", "true")]
+    #[case("5.5 != 5.5", "false")]
+    #[case("5.5 != 6.5", "true")]
+    #[case("nil != nil", "false")]
+    fn test_evaluate_equality_not_equals(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_evaluate_unary_not_number() {
-        let source = "!10.40";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "false");
-    }
-
-    #[test]
-    fn test_evaluate_unary_group_not_bool() {
-        let source = "!((false))";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_arithmetic_division() {
-        let source = "42 / 5";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "8.4");
-    }
-
-    #[test]
-    fn test_evaluate_arithmetic_multiplication_and_division() {
-        let source = "18 * 3 / (3 * 6)";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "3");
-    }
-
-    #[test]
-    fn test_evaluate_arithmetic_multiplication_and_division_2() {
-        let source = "(10.40 * 2) / 2";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "10.4");
-    }
-
-    #[test]
-    fn test_evaluate_arithmetic_minus() {
-        let source = "70 - 65";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "5");
-    }
-
-    #[test]
-    fn test_evaluate_arithmetic_minus_negative() {
-        let source = "69 - 93";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "-24");
-    }
-
-    #[test]
-    fn test_evaluate_arithmetic_minus_float() {
-        let source = "10.40 - 2";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "8.4");
-    }
-
-    #[test]
-    fn test_evaluate_arithmetic_plus_minus_group() {
-        let source = "23 + 28 - (-(61 - 99))";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "13");
-    }
-
-    #[test]
-    fn test_evaluate_string_concatenation() {
-        let source = "\"hello\" + \" world!\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "hello world!");
-    }
-
-    #[test]
-    fn test_evaluate_string_concatenation_2() {
-        let source = "\"42\" + \"24\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "4224");
-    }
-
-    #[test]
-    fn test_evaluate_string_concatenation_3() {
-        let source = "\"foo\" + \"bar\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "foobar");
-    }
-
-    #[test]
-    fn test_evaluate_relational_greater() {
-        let source = "57 > -65";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_relational_greater_equal() {
-        let source = "11 >= 11";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_relational_greater_equal_group() {
-        let source = "(54 - 67) >= -(114 / 57 + 11)";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_relational_less() {
-        let source = "57 < -65";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "false");
-    }
-
-    #[test]
-    fn test_evaluate_relational_less_equal() {
-        let source = "11 <= 11";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_equality_equals() {
-        let source = "\"hello\" == \"world\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "false");
-    }
-
-    #[test]
-    fn test_evaluate_equality_equals_2() {
-        let source = "\"foo\" == \"foo\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_equality_equals_3() {
-        let source = "true == true";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_equality_equals_4() {
-        let source = "5 == 5";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_equality_equals_5() {
-        let source = "nil == nil";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_equality_not_equals() {
-        let source = "\"foo\" != \"bar\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "true");
-    }
-
-    #[test]
-    fn test_evaluate_equality_equals_string_and_number() {
-        let source = "61 == \"61\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.unwrap().to_string(), "false");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_unary_minus() {
-        let source = "-\"foo\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operand must be a number.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_unary_minus_2() {
-        let source = "-false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operand must be a number.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_unary_minus_3() {
-        let source = "-(\"foo\" + \"bar\")";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operand must be a number.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_unary_minus_4() {
-        let source = "-false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operand must be a number.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_multiply() {
-        let source = "\"foo\" * 42";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_multiply_2() {
-        let source = "(\"foo\" * \"bar\")";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_divide() {
-        let source = "true / 2";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_divide_2() {
-        let source = "false / true";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_plus() {
-        let source = "\"foo\" + true";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_plus_2() {
-        let source = "42 - true";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_plus_3() {
-        let source = "true + false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_plus_4() {
-        let source = "\"foo\" - \"bar\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_greater() {
-        let source = "\"foo\" < false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_greater_2() {
-        let source = "true < 2";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_greater_3() {
-        let source = "(\"foo\" + \"bar\") < 42";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_less() {
-        let source = "false > true";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_greater_equal() {
-        let source = "\"foo\" <= false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
-    }
-
-    #[test]
-    fn test_evaluate_runtime_error_binary_less_equal() {
-        let source = "\"foo\" >= false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        let result = evaluate(parser.parse_expression().unwrap());
-        assert_eq!(result.err().unwrap(), "Operands must be a numbers.");
+    #[rstest]
+    #[case("-\"foo\"", "Operand must be a number.")]
+    #[case("-false", "Operand must be a number.")]
+    #[case("-nil", "Operand must be a number.")]
+    #[case("\"foo\" * 42", "Operands must be a numbers.")]
+    #[case("(\"foo\" * \"bar\")", "Operands must be a numbers.")]
+    #[case("true / 2", "Operands must be a numbers.")]
+    #[case("true / false", "Operands must be a numbers.")]
+    #[case("\"foo\" + true", "Operands must be a numbers.")]
+    #[case("42 - true", "Operands must be a numbers.")]
+    #[case("true + false", "Operands must be a numbers.")]
+    #[case("\"foo\" - \"bar\"", "Operands must be a numbers.")]
+    #[case("\"foo\" < false", "Operands must be a numbers.")]
+    #[case("true < 2", "Operands must be a numbers.")]
+    #[case("(\"foo\" + \"bar\") < 42", "Operands must be a numbers.")]
+    #[case("false > true", "Operands must be a numbers.")]
+    #[case("\"foo\" <= false", "Operands must be a numbers.")]
+    #[case("\"foo\" >= false", "Operands must be a numbers.")]
+    fn test_evaluate_runtime_error(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).err().unwrap());
     }
 }

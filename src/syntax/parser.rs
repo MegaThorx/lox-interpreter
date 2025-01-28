@@ -184,222 +184,88 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use rstest::*;
+    use crate::syntax::expression::Expression;
     use crate::syntax::parser::Parser;
     use crate::syntax::tokenizer::Scanner;
 
-    #[test]
-    fn test_parser_booleans_true() {
-        let source = "true";
+    fn run(source: &str) -> Result<Expression, String> {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "true");
+        parser.parse_expression()
     }
 
-    #[test]
-    fn test_parser_booleans_false() {
-        let source = "false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "false");
+    #[rstest]
+    #[case("true", "true")]
+    #[case("false", "false")]
+    #[case("nil", "nil")]
+    fn test_parser_booleans_and_nil(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_parser_nil() {
-        let source = "nil";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "nil");
+    #[rstest]
+    #[case("123", "123.0")]
+    #[case("123.123", "123.123")]
+    #[case("32453454", "32453454.0")]
+    #[case("32453454.32453454000", "32453454.32453454")]
+    fn test_parser_numbers(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_parser_number() {
-        let source = "123";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "123.0");
+    #[rstest]
+    #[case("\"test\"", "test")]
+    #[case("(\"foo\")", "(group foo)")]
+    #[case("((\"foo\"))", "(group (group foo))")]
+    fn test_parser_string(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_parser_number_with_decimals() {
-        let source = "123.123";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "123.123");
+    #[rstest]
+    #[case("!false", "(! false)")]
+    #[case("!\"foo\")", "(! foo)")]
+    #[case("!123", "(! 123.0)")]
+    fn test_parser_unary_not(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_parser_string() {
-        let source = "\"test\"test";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "test");
+    #[rstest]
+    #[case("-4", "(- 4.0)")]
+    fn test_parser_unary_minus(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_parser_group_simple() {
-        let source = "(\"foo\")";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(group foo)");
+    #[rstest]
+    #[case("16 * 38 / 58", "(/ (* 16.0 38.0) 58.0)")]
+    #[case("(15 * -78 / (15 * 40))", "(group (/ (* 15.0 (- 78.0)) (group (* 15.0 40.0))))")]
+    #[case("(1 / 2) * (-3 / -2)", "(* (group (/ 1.0 2.0)) (group (/ (- 3.0) (- 2.0))))")]
+    #[case("52 + 80 - 94", "(- (+ 52.0 80.0) 94.0)")]
+    #[case("(1 + 2) * (-3 - -2)", "(* (group (+ 1.0 2.0)) (group (- (- 3.0) (- 2.0))))")]
+    fn test_parser_arithmetic(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_parser_group_multiple() {
-        let source = "((\"foo\"))";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(group (group foo))");
+    #[rstest]
+    #[case("83 < 99 < 115", "(< (< 83.0 99.0) 115.0)")]
+    #[case("83 > 99 > 115", "(> (> 83.0 99.0) 115.0)")]
+    #[case("83 >= 99 <= 115", "(<= (>= 83.0 99.0) 115.0)")]
+    fn test_parser_comparison(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
 
-    #[test]
-    fn test_parser_unary_operator_not() {
-        let source = "!false";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(! false)");
+    #[rstest]
+    #[case("\"baz\" == \"baz\"", "(== baz baz)")]
+    #[case("\"baz\" != \"baz\"", "(!= baz baz)")]
+    fn test_parser_equal(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).unwrap().to_string());
     }
-
-    #[test]
-    fn test_parser_unary_operator_minus() {
-        let source = "-4";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(- 4.0)");
-    }
-
-    #[test]
-    fn test_parser_arithmetic_operator_multiply_and_division() {
-        let source = "16 * 38 / 58";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(/ (* 16.0 38.0) 58.0)");
-    }
-
-    #[test]
-    fn test_parser_arithmetic_operator_multiply_and_division_complex() {
-        let source = "(15 * -78 / (15 * 40))";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(group (/ (* 15.0 (- 78.0)) (group (* 15.0 40.0))))");
-    }
-
-    #[test]
-    fn test_parser_arithmetic_operator_multiply_and_division_complex_2() {
-        let source = "(1 / 2) * (-3 / -2)";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(* (group (/ 1.0 2.0)) (group (/ (- 3.0) (- 2.0))))");
-    }
-
-    #[test]
-    fn test_parser_arithmetic_operator_minus_and_plus() {
-        let source = "52 + 80 - 94";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(- (+ 52.0 80.0) 94.0)");
-    }
-
-    #[test]
-    fn test_parser_arithmetic_operator_minus_and_plus_complex() {
-        let source = "(1 + 2) * (-3 - -2)";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(* (group (+ 1.0 2.0)) (group (- (- 3.0) (- 2.0))))");
-    }
-
-    #[test]
-    fn test_parser_comparison_operator() {
-        let source = "83 < 99 < 115";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(< (< 83.0 99.0) 115.0)");
-    }
-
-    #[test]
-    fn test_parser_comparison_operator_2() {
-        let source = "83 > 99 > 115";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(> (> 83.0 99.0) 115.0)");
-    }
-
-    #[test]
-    fn test_parser_comparison_operator_3() {
-        let source = "83 >= 99 <= 115";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(<= (>= 83.0 99.0) 115.0)");
-    }
-
-    #[test]
-    fn test_parser_equal_operator() {
-        let source = "\"baz\" == \"baz\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(== baz baz)");
-    }
-
-    #[test]
-    fn test_parser_not_equal_operator() {
-        let source = "\"baz\" != \"baz\"";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().unwrap().to_string(), "(!= baz baz)");
-    }
-
-    #[test]
-    fn test_parser_syntax_error() {
-        let source = "(72 +)";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at ')': Expect expression.");
-    }
-
-    #[test]
-    fn test_parser_syntax_error_2() {
-        let source = "(72 +";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at end: Expect expression.");
-    }
-
-    #[test]
-    fn test_parser_syntax_error_3() {
-        let source = "(72 + 42";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at end: Expect expression.");
-    }
-
-    #[test]
-    fn test_parser_syntax_error_4() {
-        let source = "(72 }";
-        let mut scanner = Scanner::new(source);
-        let (tokens, _) = scanner.scan_tokens();
-        let mut parser = Parser::new(tokens);
-        assert_eq!(parser.parse_expression().err().unwrap().to_string(), "[line 1] Error at '}': Expect expression.");
+    
+    #[rstest]
+    #[case("(72 +)", "[line 1] Error at ')': Expect expression.")]
+    #[case("(72 +", "[line 1] Error at end: Expect expression.")]
+    #[case("(72 + 42", "[line 1] Error at end: Expect expression.")]
+    #[case("(72 }", "[line 1] Error at '}': Expect expression.")]
+    fn test_parser_syntax_error(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run(input).err().unwrap());
     }
 }
