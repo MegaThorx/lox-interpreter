@@ -106,7 +106,7 @@ fn evaluate_expression(expression: Expression, variables: Option<&HashMap<String
                 }
             })
         },
-        Expression::Variable(name) => { 
+        Expression::Variable(name) => {
             if let Some(variables) = variables {
                 if let Some(variable) = variables.get(&name) {
                     match variable {
@@ -116,13 +116,11 @@ fn evaluate_expression(expression: Expression, variables: Option<&HashMap<String
                         Value::None => Ok(Literal::None),
                     }
                 } else {
-                    println!("Variable {} not found", name);
-                    Ok(Literal::None)
+                    Err(format!("Undefined variable '{}'.", name))
                 }
-                
+
             } else {
-                println!("Missing variables");
-                Ok(Literal::None)
+                Err(format!("Undefined variable '{}'.", name))
             }
         }
     }
