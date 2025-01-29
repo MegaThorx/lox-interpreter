@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+#[derive(Clone)]
 pub enum Literal {
     Bool(bool),
     Number(f64),
@@ -93,6 +94,7 @@ pub enum Expression {
     Unary(UnaryOperation, Box<Expression>),
     Binary(BinaryOperation, Box<Expression>, Box<Expression>),
     Variable(String),
+    Assign(String, Box<Expression>),
 }
 
 impl Display for Expression {
@@ -103,6 +105,7 @@ impl Display for Expression {
             Expression::Unary(operator, expression) => write!(f, "({} {})", operator, expression),
             Expression::Binary(operator, left, right) => write!(f, "({} {} {})", operator, left, right),
             Expression::Variable(name) => write!(f, "(variable {})", name),
+            Expression::Assign(name, expression) => write!(f, "(assign {} {})", name, expression),
         }
     }
 }

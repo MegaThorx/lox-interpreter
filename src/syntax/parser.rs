@@ -62,6 +62,7 @@ impl<'a> Parser<'a> {
 
         if !self.check(TokenType::Semicolon) {
             let token = self.current();
+            println!("{}", token);
             return Err(match is_value {
                 true => format!("[line {}] Expect ';' after expression.", token.line),
                 false => format!("[line {}] Expect ';' after value.", token.line),
@@ -74,7 +75,22 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expression(&mut self) -> Result<Expression, String> {
-        self.parse_equality()
+        self.parse_assignment()
+    }
+
+    fn parse_assignment(&mut self) -> Result<Expression, String> {
+        let mut expression = self.parse_equality()?;
+
+        while matches!(self, TokenType::Equal) {
+            expression = match expression {
+                Expression::Variable(name) => Expression::Assign(name, Box::new(self.parse_expression()?)),
+                _ => {
+                    return Err("Invalid assignment target.".to_string());
+                }
+            }
+        }
+
+        Ok(expression)
     }
 
     fn parse_equality(&mut self) -> Result<Expression, String> {

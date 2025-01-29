@@ -42,13 +42,14 @@ pub fn run(statements: Vec<Statement>) -> Result<(), String>{
     
     for statement in statements {
         match statement {
-            Statement::Print(expression) => println!("{}", evaluate(expression, Some(&variables))?),
+            Statement::Print(expression) => println!("{}", evaluate(expression, Some(&mut variables))?),
             Statement::Expression(expression) => {
-                evaluate(expression, Some(&variables))?;
+                evaluate(expression, Some(&mut variables))?;
             },
             Statement::Variable(name, expression) => {
                 if expression.is_some() {
-                    variables.insert(name, evaluate(expression.unwrap(), Some(&variables))?);
+                    let value = evaluate(expression.unwrap(), Some(&mut variables))?;
+                    variables.insert(name, value);
                 } else {
                     variables.insert(name, Value::None);
                 }
@@ -59,7 +60,7 @@ pub fn run(statements: Vec<Statement>) -> Result<(), String>{
     Ok(())
 }
 
-pub fn evaluate(expression: Expression, variables: Option<&HashMap<String, Value>>) -> Result<Value, String> {
+pub fn evaluate(expression: Expression, variables: Option<&mut HashMap<String, Value>>) -> Result<Value, String> {
     let result = evaluate_expression(expression, variables);
     if let Ok(literal) = result {
         Ok(Value::from_literal(literal))
@@ -68,21 +69,45 @@ pub fn evaluate(expression: Expression, variables: Option<&HashMap<String, Value
     }
 }
 
-fn evaluate_expression(expression: Expression, variables: Option<&HashMap<String, Value>>) -> Result<Literal, String> {
+fn evaluate_expression(expression: Expression, variables: Option<&mut HashMap<String, Value>>) -> Result<Literal, String> {
+    match expression {
+        Expression::Assign(name, expression) => {
+            if let Some(variables) = variables {
+                let result = evaluate_expression(*expression, Some(variables))?;
+                variables.insert(name, Value::from_literal(result.clone()));
+
+                Ok(result)
+            } else {
+                Ok(Literal::None)
+            }
+        },
+        expression => {
+            if let Some(variables) = variables {
+                evaluate_expression_read_only(expression, Some(variables))
+            } else {
+                evaluate_expression_read_only(expression, None)
+            }
+        }
+    }
+}
+
+
+fn evaluate_expression_read_only(expression: Expression, variables: Option<&HashMap<String, Value>>) -> Result<Literal, String> {
     match expression {
         Expression::Literal(literal) => Ok(literal),
-        Expression::Grouping(expression) => evaluate_expression(*expression, variables),
+        Expression::Grouping(expression) => evaluate_expression_read_only(*expression, variables),
         Expression::Unary(operation, expression) => {
             match operation {
-                UnaryOperation::Minus => match evaluate_expression(*expression, variables)? {
+                UnaryOperation::Minus => match evaluate_expression_read_only(*expression, variables)? {
                     Literal::Number(number) => Ok(Literal::Number(-number)),
                     _ => Err("Operand must be a number.".to_string()),
                 },
-                UnaryOperation::Not => Ok(Literal::Bool(!evaluate_expression(*expression, variables)?.is_truthy())),
+                UnaryOperation::Not => Ok(Literal::Bool(!evaluate_expression_read_only(*expression, variables)?.is_truthy())),
             }
         },
         Expression::Binary(operation, left, right) => {
-            let (left, right) = (evaluate_expression(*left, variables)?, evaluate_expression(*right, variables)?);
+            let left = evaluate_expression_read_only(*left, variables)?;
+            let right = evaluate_expression_read_only(*right, variables)?;
 
             Ok(match operation {
                 BinaryOperation::Equal => Literal::Bool(left.is_equal(&right)),
@@ -122,7 +147,8 @@ fn evaluate_expression(expression: Expression, variables: Option<&HashMap<String
             } else {
                 Err(format!("Undefined variable '{}'.", name))
             }
-        }
+        },
+        _ => unreachable!()
     }
 }
 
