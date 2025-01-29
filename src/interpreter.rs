@@ -38,8 +38,14 @@ impl Value {
 }
 
 pub fn run(statements: Vec<Statement>) -> Result<(), String>{
+    run_statements(statements)?;
+
+    Ok(())
+}
+
+fn run_statements(statements: Vec<Statement>) -> Result<(), String> {
     let mut variables: HashMap<String, Value> = HashMap::new();
-    
+
     for statement in statements {
         match statement {
             Statement::Print(expression) => println!("{}", evaluate(expression, Some(&mut variables))?),
@@ -54,9 +60,12 @@ pub fn run(statements: Vec<Statement>) -> Result<(), String>{
                     variables.insert(name, Value::None);
                 }
             },
+            Statement::Block(statements) => {
+                run_statements(statements)?
+            }
         }
     }
-
+    
     Ok(())
 }
 

@@ -39,37 +39,60 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_statement(&mut self) -> Result<Statement, String> {
-        let mut is_value = false;
-
         let statement = if matches!(self, TokenType::Print) {
-            is_value = true;
-            Statement::Print(self.parse_expression()?)
+            let expression = self.parse_expression()?;
+
+            if !self.check(TokenType::Semicolon) {
+                return Err(format!("[line {}] Expect ';' after expression.", self.current().line));
+            }
+
+            self.advance();
+
+            Statement::Print(expression)
         } else if matches!(self, TokenType::Var) {
             let token = self.consume();
 
             if let TokenType::Identifier(name) = token.token {
+                let mut expression: Option<Expression> = None;
                 if matches!(self, TokenType::Equal) {
-                    Statement::Variable(name.to_string(), Some(self.parse_expression()?))
-                } else {
-                    Statement::Variable(name.to_string(), None)
+                    expression = Some(self.parse_expression()?);
                 }
+
+                if !self.check(TokenType::Semicolon) {
+                    return Err(format!("[line {}] Expect ';' after value.", self.current().line));
+                }
+
+                self.advance();
+
+                Statement::Variable(name.to_string(), expression)
             } else {
                 return Err(format!("[line {}] Expect variable name.", token.line));
             }
+        } else if matches!(self, TokenType::LeftBrace) {
+            let mut statements: Vec<Statement> = Vec::new();
+
+            while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+                statements.push(self.parse_statement()?);
+            }
+
+            if !self.check(TokenType::RightBrace) {
+                return Err(format!("[line {}] Expect '{}' after block.", self.current().line, '}'));
+            }
+
+            self.advance();
+
+            Statement::Block(statements)
         } else {
-            Statement::Expression(self.parse_expression()?)
+            let expression = self.parse_expression()?;
+
+            if !self.check(TokenType::Semicolon) {
+                return Err(format!("[line {}] Expect ';' after value.", self.current().line));
+            }
+
+            self.advance();
+
+            Statement::Expression(expression)
         };
-
-        if !self.check(TokenType::Semicolon) {
-            let token = self.current();
-            println!("{}", token);
-            return Err(match is_value {
-                true => format!("[line {}] Expect ';' after expression.", token.line),
-                false => format!("[line {}] Expect ';' after value.", token.line),
-            });
-        }
-
-        self.advance();
 
         Ok(statement)
     }
@@ -208,6 +231,10 @@ impl<'a> Parser<'a> {
 
     fn advance(&mut self) {
         self.current += 1;
+    }
+
+    fn is_at_end(&self) -> bool {
+        self.current >= self.tokens.len()
     }
 }
 
