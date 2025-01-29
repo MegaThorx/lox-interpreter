@@ -1,4 +1,5 @@
-﻿use std::fmt::Display;
+﻿use std::collections::HashMap;
+use std::fmt::Display;
 use crate::syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
 use crate::syntax::statement::Statement;
 
@@ -37,43 +38,51 @@ impl Value {
 }
 
 pub fn run(statements: Vec<Statement>) -> Result<(), String>{
+    let mut variables: HashMap<String, Value> = HashMap::new();
+    
     for statement in statements {
         match statement {
-            Statement::Print(expression) => println!("{}", evaluate(expression)?),
+            Statement::Print(expression) => println!("{}", evaluate(expression, Some(&variables))?),
             Statement::Expression(expression) => {
-                evaluate(expression)?;
-            }
+                evaluate(expression, Some(&variables))?;
+            },
+            Statement::Variable(name, expression) => {
+                if expression.is_some() {
+                    variables.insert(name, evaluate(expression.unwrap(), Some(&variables))?);
+                } else {
+                    variables.insert(name, Value::None);
+                }
+            },
         }
     }
 
     Ok(())
 }
 
-pub fn evaluate(expression: Expression) -> Result<Value, String> {
-    let result = evaluate_expression(expression);
+pub fn evaluate(expression: Expression, variables: Option<&HashMap<String, Value>>) -> Result<Value, String> {
+    let result = evaluate_expression(expression, variables);
     if let Ok(literal) = result {
         Ok(Value::from_literal(literal))
     } else {
         Err(result.err().unwrap())
     }
-
 }
 
-fn evaluate_expression(expression: Expression) -> Result<Literal, String> {
+fn evaluate_expression(expression: Expression, variables: Option<&HashMap<String, Value>>) -> Result<Literal, String> {
     match expression {
         Expression::Literal(literal) => Ok(literal),
-        Expression::Grouping(expression) => evaluate_expression(*expression),
+        Expression::Grouping(expression) => evaluate_expression(*expression, variables),
         Expression::Unary(operation, expression) => {
             match operation {
-                UnaryOperation::Minus => match evaluate_expression(*expression)? {
+                UnaryOperation::Minus => match evaluate_expression(*expression, variables)? {
                     Literal::Number(number) => Ok(Literal::Number(-number)),
                     _ => Err("Operand must be a number.".to_string()),
                 },
-                UnaryOperation::Not => Ok(Literal::Bool(!evaluate_expression(*expression)?.is_truthy())),
+                UnaryOperation::Not => Ok(Literal::Bool(!evaluate_expression(*expression, variables)?.is_truthy())),
             }
         },
         Expression::Binary(operation, left, right) => {
-            let (left, right) = (evaluate_expression(*left)?, evaluate_expression(*right)?);
+            let (left, right) = (evaluate_expression(*left, variables)?, evaluate_expression(*right, variables)?);
 
             Ok(match operation {
                 BinaryOperation::Equal => Literal::Bool(left.is_equal(&right)),
@@ -97,6 +106,25 @@ fn evaluate_expression(expression: Expression) -> Result<Literal, String> {
                 }
             })
         },
+        Expression::Variable(name) => { 
+            if let Some(variables) = variables {
+                if let Some(variable) = variables.get(&name) {
+                    match variable {
+                        Value::Bool(boolean) => Ok(Literal::Bool(*boolean)),
+                        Value::Number(number) => Ok(Literal::Number(*number)),
+                        Value::String(string) => Ok(Literal::String(string.clone())),
+                        Value::None => Ok(Literal::None),
+                    }
+                } else {
+                    println!("Variable {} not found", name);
+                    Ok(Literal::None)
+                }
+                
+            } else {
+                println!("Missing variables");
+                Ok(Literal::None)
+            }
+        }
     }
 }
 
@@ -111,7 +139,7 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        evaluate(parser.parse_expression()?)
+        evaluate(parser.parse_expression()?, None)
     }
 
     #[rstest]

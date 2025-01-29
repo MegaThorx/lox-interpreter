@@ -91,7 +91,7 @@ fn main() {
             let expression = parser.parse_expression();
 
             if expression.is_ok() {
-                let result = evaluate(expression.unwrap());
+                let result = evaluate(expression.unwrap(), None);
 
                 if result.is_ok() {
                     println!("{}", result.unwrap());

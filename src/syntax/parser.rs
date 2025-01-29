@@ -44,6 +44,18 @@ impl<'a> Parser<'a> {
         let statement = if matches!(self, TokenType::Print) {
             is_value = true;
             Statement::Print(self.parse_expression()?)
+        } else if matches!(self, TokenType::Var) {
+            let token = self.consume();
+
+            if let TokenType::Identifier(name) = token.token {
+                if matches!(self, TokenType::Equal) {
+                    Statement::Variable(name.to_string(), Some(self.parse_expression()?))
+                } else {
+                    Statement::Variable(name.to_string(), None)
+                }
+            } else {
+                return Err(format!("[line {}] Expect variable name.", token.line));
+            }
         } else {
             Statement::Expression(self.parse_expression()?)
         };
@@ -138,6 +150,7 @@ impl<'a> Parser<'a> {
             TokenType::Number(number) => Ok(Expression::Literal(Literal::Number(number))),
             TokenType::String(string) => Ok(Expression::Literal(Literal::String(string.to_string()))),
             TokenType::Nil => Ok(Expression::Literal(Literal::None)),
+            TokenType::Identifier(name) => Ok(Expression::Variable(name.to_string())),
             TokenType::LeftParen => {
                 let expression = self.parse_expression()?;
 

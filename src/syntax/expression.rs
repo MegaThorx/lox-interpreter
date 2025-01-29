@@ -92,6 +92,7 @@ pub enum Expression {
     Grouping(Box<Expression>),
     Unary(UnaryOperation, Box<Expression>),
     Binary(BinaryOperation, Box<Expression>, Box<Expression>),
+    Variable(String),
 }
 
 impl Display for Expression {
@@ -101,6 +102,7 @@ impl Display for Expression {
             Expression::Grouping(expression) => write!(f, "(group {})", expression),
             Expression::Unary(operator, expression) => write!(f, "({} {})", operator, expression),
             Expression::Binary(operator, left, right) => write!(f, "({} {} {})", operator, left, right),
+            Expression::Variable(name) => write!(f, "(variable {})", name),
         }
     }
 }
