@@ -245,11 +245,19 @@ mod tests {
     use crate::syntax::parser::Parser;
     use crate::syntax::tokenizer::Scanner;
 
-    fn run(source: &str) -> Result<Expression, String> {
+    fn run_expression(source: &str) -> Result<Expression, String> {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
         parser.parse_expression()
+    }
+
+    fn run_statement(source: &str) -> Result<String, String> {
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse()?;
+        Ok(statements.iter().map(|statement| statement.to_string()).collect::<Vec<String>>().join(" "))
     }
 
     #[rstest]
@@ -257,7 +265,7 @@ mod tests {
     #[case("false", "false")]
     #[case("nil", "nil")]
     fn test_parser_booleans_and_nil(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -266,7 +274,7 @@ mod tests {
     #[case("32453454", "32453454.0")]
     #[case("32453454.32453454000", "32453454.32453454")]
     fn test_parser_numbers(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -274,7 +282,7 @@ mod tests {
     #[case("(\"foo\")", "(group foo)")]
     #[case("((\"foo\"))", "(group (group foo))")]
     fn test_parser_string(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -282,13 +290,13 @@ mod tests {
     #[case("!\"foo\")", "(! foo)")]
     #[case("!123", "(! 123.0)")]
     fn test_parser_unary_not(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
 
     #[rstest]
     #[case("-4", "(- 4.0)")]
     fn test_parser_unary_minus(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -298,7 +306,7 @@ mod tests {
     #[case("52 + 80 - 94", "(- (+ 52.0 80.0) 94.0)")]
     #[case("(1 + 2) * (-3 - -2)", "(* (group (+ 1.0 2.0)) (group (- (- 3.0) (- 2.0))))")]
     fn test_parser_arithmetic(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -306,14 +314,14 @@ mod tests {
     #[case("83 > 99 > 115", "(> (> 83.0 99.0) 115.0)")]
     #[case("83 >= 99 <= 115", "(<= (>= 83.0 99.0) 115.0)")]
     fn test_parser_comparison(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
 
     #[rstest]
     #[case("\"baz\" == \"baz\"", "(== baz baz)")]
     #[case("\"baz\" != \"baz\"", "(!= baz baz)")]
     fn test_parser_equal(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
     
     #[rstest]
@@ -322,6 +330,12 @@ mod tests {
     #[case("(72 + 42", "[line 1] Error at end: Expect expression.")]
     #[case("(72 }", "[line 1] Error at '}': Expect expression.")]
     fn test_parser_syntax_error(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).err().unwrap());
+        assert_eq!(expected, run_expression(input).err().unwrap());
+    }
+
+    #[rstest]
+    #[case("print \"hello world\";", "(print (; hello world ))")]
+    fn test_parser_statements(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).unwrap());
     }
 }
