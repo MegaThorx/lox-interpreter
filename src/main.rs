@@ -1,5 +1,6 @@
 mod syntax;
 mod interpreter;
+mod environment;
 
 use std::env;
 use std::fs;

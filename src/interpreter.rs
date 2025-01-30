@@ -1,8 +1,9 @@
-﻿use std::collections::HashMap;
-use std::fmt::Display;
+﻿use std::fmt::Display;
+use crate::environment::Environment;
 use crate::syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
 use crate::syntax::statement::Statement;
 
+#[derive(PartialEq, Debug, Clone)]
 pub enum Value {
     Bool(bool),
     Number(f64),
@@ -38,39 +39,40 @@ impl Value {
 }
 
 pub fn run(statements: Vec<Statement>) -> Result<(), String>{
-    run_statements(statements)?;
+    let mut environment = Environment::default();
+    run_statements(statements, &mut environment)?;
 
     Ok(())
 }
 
-fn run_statements(statements: Vec<Statement>) -> Result<(), String> {
-    let mut variables: HashMap<String, Value> = HashMap::new();
-
+fn run_statements(statements: Vec<Statement>, environment: &mut Environment) -> Result<(), String> {
     for statement in statements {
         match statement {
-            Statement::Print(expression) => println!("{}", evaluate(expression, Some(&mut variables))?),
+            Statement::Print(expression) => println!("{}", evaluate(expression, Some(environment))?),
             Statement::Expression(expression) => {
-                evaluate(expression, Some(&mut variables))?;
+                evaluate(expression, Some(environment))?;
             },
             Statement::Variable(name, expression) => {
                 if expression.is_some() {
-                    let value = evaluate(expression.unwrap(), Some(&mut variables))?;
-                    variables.insert(name, value);
+                    let value = evaluate(expression.unwrap(), Some(environment))?;
+                    environment.declare(name.to_string(), value);
                 } else {
-                    variables.insert(name, Value::None);
+                    environment.declare(name.to_string(), Value::None);
                 }
             },
             Statement::Block(statements) => {
-                run_statements(statements)?
+                environment.push_scope();
+                run_statements(statements, environment)?;
+                environment.pop_scope();
             }
         }
     }
-    
+
     Ok(())
 }
 
-pub fn evaluate(expression: Expression, variables: Option<&mut HashMap<String, Value>>) -> Result<Value, String> {
-    let result = evaluate_expression(expression, variables);
+pub fn evaluate(expression: Expression, environment: Option<&mut Environment>) -> Result<Value, String> {
+    let result = evaluate_expression(expression, environment);
     if let Ok(literal) = result {
         Ok(Value::from_literal(literal))
     } else {
@@ -78,12 +80,12 @@ pub fn evaluate(expression: Expression, variables: Option<&mut HashMap<String, V
     }
 }
 
-fn evaluate_expression(expression: Expression, variables: Option<&mut HashMap<String, Value>>) -> Result<Literal, String> {
+fn evaluate_expression(expression: Expression, environment: Option<&mut Environment>) -> Result<Literal, String> {
     match expression {
         Expression::Assign(name, expression) => {
-            if let Some(variables) = variables {
-                let result = evaluate_expression(*expression, Some(variables))?;
-                variables.insert(name, Value::from_literal(result.clone()));
+            if let Some(environment) = environment {
+                let result = evaluate_expression(*expression, Some(environment))?;
+                environment.assign(name, Value::from_literal(result.clone()))?;
 
                 Ok(result)
             } else {
@@ -91,8 +93,8 @@ fn evaluate_expression(expression: Expression, variables: Option<&mut HashMap<St
             }
         },
         expression => {
-            if let Some(variables) = variables {
-                evaluate_expression_read_only(expression, Some(variables))
+            if let Some(environment) = environment {
+                evaluate_expression_read_only(expression, Some(environment))
             } else {
                 evaluate_expression_read_only(expression, None)
             }
@@ -101,22 +103,22 @@ fn evaluate_expression(expression: Expression, variables: Option<&mut HashMap<St
 }
 
 
-fn evaluate_expression_read_only(expression: Expression, variables: Option<&HashMap<String, Value>>) -> Result<Literal, String> {
+fn evaluate_expression_read_only(expression: Expression, environment: Option<&Environment>) -> Result<Literal, String> {
     match expression {
         Expression::Literal(literal) => Ok(literal),
-        Expression::Grouping(expression) => evaluate_expression_read_only(*expression, variables),
+        Expression::Grouping(expression) => evaluate_expression_read_only(*expression, environment),
         Expression::Unary(operation, expression) => {
             match operation {
-                UnaryOperation::Minus => match evaluate_expression_read_only(*expression, variables)? {
+                UnaryOperation::Minus => match evaluate_expression_read_only(*expression, environment)? {
                     Literal::Number(number) => Ok(Literal::Number(-number)),
                     _ => Err("Operand must be a number.".to_string()),
                 },
-                UnaryOperation::Not => Ok(Literal::Bool(!evaluate_expression_read_only(*expression, variables)?.is_truthy())),
+                UnaryOperation::Not => Ok(Literal::Bool(!evaluate_expression_read_only(*expression, environment)?.is_truthy())),
             }
         },
         Expression::Binary(operation, left, right) => {
-            let left = evaluate_expression_read_only(*left, variables)?;
-            let right = evaluate_expression_read_only(*right, variables)?;
+            let left = evaluate_expression_read_only(*left, environment)?;
+            let right = evaluate_expression_read_only(*right, environment)?;
 
             Ok(match operation {
                 BinaryOperation::Equal => Literal::Bool(left.is_equal(&right)),
@@ -141,9 +143,9 @@ fn evaluate_expression_read_only(expression: Expression, variables: Option<&Hash
             })
         },
         Expression::Variable(name) => {
-            if let Some(variables) = variables {
-                if let Some(variable) = variables.get(&name) {
-                    match variable {
+            if let Some(environment) = environment {
+                if let Some(value) = environment.get(&name) {
+                    match value {
                         Value::Bool(boolean) => Ok(Literal::Bool(*boolean)),
                         Value::Number(number) => Ok(Literal::Number(*number)),
                         Value::String(string) => Ok(Literal::String(string.clone())),
