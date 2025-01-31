@@ -5,7 +5,7 @@ mod environment;
 use std::env;
 use std::fs;
 use std::process::exit;
-use crate::interpreter::{evaluate, run};
+use crate::interpreter::Interpreter;
 use crate::syntax::parser::Parser;
 use crate::syntax::tokenizer::Scanner;
 
@@ -22,13 +22,13 @@ fn main() {
     let command = &args[1];
     let filename = &args[2];
 
+    let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
+        eprintln!("Failed to read file {}", filename);
+        String::new()
+    });
+    
     match command.as_str() {
         "tokenize" => {
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {}", filename);
-                String::new()
-            });
-
             let mut scanner = Scanner::new(&file_contents);
             let (tokens, errors) = scanner.scan_tokens();
 
@@ -45,11 +45,6 @@ fn main() {
             }
         },
         "parse" => {
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {}", filename);
-                String::new()
-            });
-
             let mut scanner = Scanner::new(&file_contents);
             let (tokens, errors) = scanner.scan_tokens();
 
@@ -72,11 +67,6 @@ fn main() {
             }
         },
         "evaluate" => {
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {}", filename);
-                String::new()
-            });
-
             let mut scanner = Scanner::new(&file_contents);
             let (tokens, errors) = scanner.scan_tokens();
 
@@ -92,7 +82,8 @@ fn main() {
             let expression = parser.parse_expression();
 
             if expression.is_ok() {
-                let result = evaluate(expression.unwrap(), None);
+                let mut interpreter = Interpreter::new(|_|{});
+                let result = interpreter.evaluate(&expression.unwrap());
 
                 if result.is_ok() {
                     println!("{}", result.unwrap());
@@ -106,11 +97,6 @@ fn main() {
             }
         },
         "run" => {
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {}", filename);
-                String::new()
-            });
-
             let mut scanner = Scanner::new(&file_contents);
             let (tokens, errors) = scanner.scan_tokens();
 
@@ -126,7 +112,8 @@ fn main() {
             let statements = parser.parse();
 
             if statements.is_ok() {
-                let result = run(statements.unwrap());
+                let mut interpreter = Interpreter::new(|value| println!("{}", value));
+                let result = interpreter.run(&statements.unwrap());
 
                 if result.is_ok() {
                 } else {

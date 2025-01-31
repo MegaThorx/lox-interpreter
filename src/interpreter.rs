@@ -38,113 +38,109 @@ impl Value {
     }
 }
 
-pub fn run(statements: Vec<Statement>) -> Result<(), String>{
-    let mut environment = Environment::default();
-    run_statements(statements, &mut environment)?;
-
-    Ok(())
+pub struct Interpreter<F: FnMut(String)> {
+    environment: Environment,
+    print: F
 }
 
-fn run_statements(statements: Vec<Statement>, environment: &mut Environment) -> Result<(), String> {
-    for statement in statements {
-        match statement {
-            Statement::Print(expression) => println!("{}", evaluate(expression, Some(environment))?),
-            Statement::Expression(expression) => {
-                evaluate(expression, Some(environment))?;
-            },
-            Statement::Variable(name, expression) => {
-                if expression.is_some() {
-                    let value = evaluate(expression.unwrap(), Some(environment))?;
-                    environment.declare(name.to_string(), value);
-                } else {
-                    environment.declare(name.to_string(), Value::None);
-                }
-            },
-            Statement::Block(statements) => {
-                environment.push_scope();
-                run_statements(statements, environment)?;
-                environment.pop_scope();
-            }
+impl<F: FnMut(String)> Interpreter<F> {
+    pub fn new(print: F) -> Self {
+        Self {
+            environment: Environment::default(),
+            print
         }
     }
 
-    Ok(())
-}
+    pub fn run(&mut self, statements: &Vec<Statement>) -> Result<(), String> {
+        self.run_statements(statements)?;
 
-pub fn evaluate(expression: Expression, environment: Option<&mut Environment>) -> Result<Value, String> {
-    let result = evaluate_expression(expression, environment);
-    if let Ok(literal) = result {
-        Ok(Value::from_literal(literal))
-    } else {
-        Err(result.err().unwrap())
+        Ok(())
     }
-}
 
-fn evaluate_expression(expression: Expression, environment: Option<&mut Environment>) -> Result<Literal, String> {
-    match expression {
-        Expression::Assign(name, expression) => {
-            if let Some(environment) = environment {
-                let result = evaluate_expression(*expression, Some(environment))?;
-                environment.assign(name, Value::from_literal(result.clone()))?;
-
-                Ok(result)
-            } else {
-                Ok(Literal::None)
-            }
-        },
-        expression => {
-            if let Some(environment) = environment {
-                evaluate_expression_read_only(expression, Some(environment))
-            } else {
-                evaluate_expression_read_only(expression, None)
-            }
-        }
-    }
-}
-
-
-fn evaluate_expression_read_only(expression: Expression, environment: Option<&Environment>) -> Result<Literal, String> {
-    match expression {
-        Expression::Literal(literal) => Ok(literal),
-        Expression::Grouping(expression) => evaluate_expression_read_only(*expression, environment),
-        Expression::Unary(operation, expression) => {
-            match operation {
-                UnaryOperation::Minus => match evaluate_expression_read_only(*expression, environment)? {
-                    Literal::Number(number) => Ok(Literal::Number(-number)),
-                    _ => Err("Operand must be a number.".to_string()),
+    fn run_statements(&mut self, statements: &Vec<Statement>) -> Result<(), String> {
+        for statement in statements {
+            match statement {
+                Statement::Print(expression) => {
+                    let value = format!("{}", self.evaluate(expression)?);
+                    (self.print)(value);
                 },
-                UnaryOperation::Not => Ok(Literal::Bool(!evaluate_expression_read_only(*expression, environment)?.is_truthy())),
-            }
-        },
-        Expression::Binary(operation, left, right) => {
-            let left = evaluate_expression_read_only(*left, environment)?;
-            let right = evaluate_expression_read_only(*right, environment)?;
-
-            Ok(match operation {
-                BinaryOperation::Equal => Literal::Bool(left.is_equal(&right)),
-                BinaryOperation::NotEqual => Literal::Bool(!left.is_equal(&right)),
-                operation => match (left, right) {
-                    (Literal::Number(left), Literal::Number(right)) => match operation {
-                        BinaryOperation::Multiply => Literal::Number(left * right),
-                        BinaryOperation::Divide => Literal::Number(left / right),
-                        BinaryOperation::Plus => Literal::Number(left + right),
-                        BinaryOperation::Minus => Literal::Number(left - right),
-                        BinaryOperation::Greater => Literal::Bool(left > right),
-                        BinaryOperation::GreaterEqual => Literal::Bool(left >= right),
-                        BinaryOperation::Less => Literal::Bool(left < right),
-                        _ => Literal::Bool(left <= right), // Last one can only be LessEqual
-                    },
-                    (Literal::String(left), Literal::String(right)) => match operation {
-                        BinaryOperation::Plus => Literal::String(format!("{}{}", left, right)),
-                        _ => return Err("Operands must be a numbers.".to_string()),
+                Statement::Expression(expression) => {
+                    self.evaluate(expression)?;
+                },
+                Statement::Variable(name, expression) => {
+                    if expression.is_some() {
+                        let value = self.evaluate(expression.as_ref().unwrap())?;
+                        self.environment.declare(name.to_string(), value);
+                    } else {
+                        self.environment.declare(name.to_string(), Value::None);
                     }
-                    (_, _) => return Err("Operands must be a numbers.".to_string())
+                },
+                Statement::Block(statements) => {
+                    self.environment.push_scope();
+                    self.run_statements(statements)?;
+                    self.environment.pop_scope();
                 }
-            })
-        },
-        Expression::Variable(name) => {
-            if let Some(environment) = environment {
-                if let Some(value) = environment.get(&name) {
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn evaluate(&mut self, expression: &Expression) -> Result<Value, String> {
+        let result = self.evaluate_expression(expression);
+        if let Ok(literal) = result {
+            Ok(Value::from_literal(literal))
+        } else {
+            Err(result.err().unwrap())
+        }
+    }
+
+    fn evaluate_expression(&mut self, expression: &Expression) -> Result<Literal, String> {
+        match expression {
+            Expression::Assign(name, expression) => {
+                let result = self.evaluate_expression(expression)?;
+                self.environment.assign(name.clone(), Value::from_literal(result.clone()))?;
+                Ok(result)
+            },
+            Expression::Literal(literal) => Ok(literal.clone()),
+            Expression::Grouping(expression) => self.evaluate_expression(expression),
+            Expression::Unary(operation, expression) => {
+                match operation {
+                    UnaryOperation::Minus => match self.evaluate_expression(expression)? {
+                        Literal::Number(number) => Ok(Literal::Number(-number)),
+                        _ => Err("Operand must be a number.".to_string()),
+                    },
+                    UnaryOperation::Not => Ok(Literal::Bool(!self.evaluate_expression(expression)?.is_truthy())),
+                }
+            },
+            Expression::Binary(operation, left, right) => {
+                let left = self.evaluate_expression(left)?;
+                let right = self.evaluate_expression(right)?;
+
+                Ok(match operation {
+                    BinaryOperation::Equal => Literal::Bool(left.is_equal(&right)),
+                    BinaryOperation::NotEqual => Literal::Bool(!left.is_equal(&right)),
+                    operation => match (left, right) {
+                        (Literal::Number(left), Literal::Number(right)) => match operation {
+                            BinaryOperation::Multiply => Literal::Number(left * right),
+                            BinaryOperation::Divide => Literal::Number(left / right),
+                            BinaryOperation::Plus => Literal::Number(left + right),
+                            BinaryOperation::Minus => Literal::Number(left - right),
+                            BinaryOperation::Greater => Literal::Bool(left > right),
+                            BinaryOperation::GreaterEqual => Literal::Bool(left >= right),
+                            BinaryOperation::Less => Literal::Bool(left < right),
+                            _ => Literal::Bool(left <= right), // Last one can only be LessEqual
+                        },
+                        (Literal::String(left), Literal::String(right)) => match operation {
+                            BinaryOperation::Plus => Literal::String(format!("{}{}", left, right)),
+                            _ => return Err("Operands must be a numbers.".to_string()),
+                        }
+                        (_, _) => return Err("Operands must be a numbers.".to_string())
+                    }
+                })
+            },
+            Expression::Variable(name) => {
+                if let Some(value) = self.environment.get(&name) {
                     match value {
                         Value::Bool(boolean) => Ok(Literal::Bool(*boolean)),
                         Value::Number(number) => Ok(Literal::Number(*number)),
@@ -154,19 +150,15 @@ fn evaluate_expression_read_only(expression: Expression, environment: Option<&En
                 } else {
                     Err(format!("Undefined variable '{}'.", name))
                 }
-
-            } else {
-                Err(format!("Undefined variable '{}'.", name))
-            }
-        },
-        _ => unreachable!()
+            },
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use rstest::*;
-    use crate::interpreter::{evaluate, Value};
+    use crate::interpreter::{Interpreter, Value};
     use crate::syntax::parser::Parser;
     use crate::syntax::tokenizer::Scanner;
 
@@ -174,7 +166,20 @@ mod tests {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
-        evaluate(parser.parse_expression()?, None)
+        let mut interpreter = Interpreter::new(|_|{});
+        interpreter.evaluate(&parser.parse_expression()?)
+    }
+
+    fn run_statement(source: &str) -> Result<Vec<String>, String> {
+        let mut scanner = Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        let mut parser = Parser::new(tokens);
+        let mut prints: Vec<String> = Vec::new();
+        let mut interpreter = Interpreter::new(|value|{
+            prints.push(value);
+        });
+        interpreter.run(&parser.parse()?)?;
+        Ok(prints)
     }
 
     #[rstest]
@@ -324,5 +329,21 @@ mod tests {
     #[case("\"foo\" >= false", "Operands must be a numbers.")]
     fn test_evaluate_runtime_error(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_evaluate(input).err().unwrap());
+    }
+
+    #[rstest]
+    #[case("print \"hello\";", vec!["hello"])]
+    #[case("var a = 1;print a;{var a = 2; print a;}print a;", vec!["1", "2", "1"])]
+    #[case("var a = 1;print a;{a = 2; print a;}print a;", vec!["1", "2", "2"])]
+    #[case("var a;print a;{a = 2; print a;}print a;", vec!["nil", "2", "2"])]
+    #[case("var a = \"a\";print a;{var a = true; print a;}a = nil; print a;", vec!["a", "true", "nil"])]
+    fn test_statements(#[case] input: &str, #[case] expected: Vec<&str>) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("print a;", "Undefined variable 'a'.")]
+    fn test_statements_error(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).err().unwrap());
     }
 }
