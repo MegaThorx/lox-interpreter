@@ -234,7 +234,7 @@ impl<'a> Parser<'a> {
     }
 
     fn is_at_end(&self) -> bool {
-        self.current >= self.tokens.len()
+        self.check(TokenType::Eof)
     }
 }
 
@@ -334,8 +334,56 @@ mod tests {
     }
 
     #[rstest]
-    #[case("print \"hello world\";", "(print (; hello world ))")]
-    fn test_parser_statements(#[case] input: &str, #[case] expected: &str) {
+    #[case("print \"hello world\";", "(print (; hello world))")]
+    #[case("print 123.1;", "(print (; 123.1))")]
+    #[case("print nil;", "(print (; nil))")]
+    #[case("print true;", "(print (; true))")]
+    #[case("print test;", "(print (; (variable test)))")]
+    fn test_parser_statement_print(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("var test = \"hello world\";", "(var test = (; hello world))")]
+    #[case("var test = 123.1;", "(var test = (; 123.1))")]
+    #[case("var test = nil;", "(var test = (; nil))")]
+    #[case("var test = true;", "(var test = (; true))")]
+    #[case("var test = test;", "(var test = (; (variable test)))")]
+    #[case("test = test;", "(; (assign test (variable test)))")]
+    #[case("var test;", "(var test)")]
+    fn test_parser_statement_variable(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("\"hello world\";", "(; hello world)")]
+    #[case("123.1;", "(; 123.1)")]
+    #[case("nil;", "(; nil)")]
+    #[case("true;", "(; true)")]
+    #[case("test;", "(; (variable test))")]
+    fn test_parser_statement_expression(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("{\"hello world\";}", "(block ((; hello world)))")]
+    #[case("{123.1;}", "(block ((; 123.1)))")]
+    #[case("{nil;}", "(block ((; nil)))")]
+    #[case("{true;}", "(block ((; true)))")]
+    #[case("{test;}", "(block ((; (variable test))))")]
+    fn test_parser_statement_block(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("print \"hello world\"", "[line 1] Expect ';' after expression.")]
+    #[case("var test = 1", "[line 1] Expect ';' after value.")]
+    #[case("var test = (", "[line 1] Error at end: Expect expression.")]
+    #[case("var", "[line 1] Expect variable name.")]
+    #[case("{", "[line 1] Expect '}' after block.")]
+    #[case("1 + 1", "[line 1] Expect ';' after value.")]
+    #[case("2 = 1", "Invalid assignment target.")]
+    fn test_parser_statement_error(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).err().unwrap());
     }
 }

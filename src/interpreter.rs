@@ -170,7 +170,7 @@ mod tests {
     use crate::syntax::parser::Parser;
     use crate::syntax::tokenizer::Scanner;
 
-    fn run(source: &str) -> Result<Value, String> {
+    fn run_evaluate(source: &str) -> Result<Value, String> {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
@@ -182,7 +182,7 @@ mod tests {
     #[case("false", "false")]
     #[case("nil", "nil")]
     fn test_evaluate_booleans_and_nil(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -190,7 +190,7 @@ mod tests {
     #[case("\"foo!\"", "foo!")]
     #[case("\"hello\non\nthe\nother\nside\"", "hello\non\nthe\nother\nside")]
     fn test_evaluate_string(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -198,7 +198,7 @@ mod tests {
     #[case("10.41", "10.41")]
     #[case("54.12300", "54.123")]
     fn test_evaluate_float(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -206,7 +206,7 @@ mod tests {
     #[case("123", "123")]
     #[case("54", "54")]
     fn test_evaluate_integer(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -216,7 +216,7 @@ mod tests {
     #[case("(10.40)", "10.4")]
     #[case("((false))", "false")]
     fn test_evaluate_group(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -230,7 +230,7 @@ mod tests {
     #[case("!!false", "false")]
     #[case("!(!false)", "false")]
     fn test_evaluate_unary(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -242,7 +242,7 @@ mod tests {
     #[case("10.40 - 2", "8.4")]
     #[case("23 + 28 - (-(61 - 99))", "13")]
     fn test_evaluate_arithmetic(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -250,7 +250,7 @@ mod tests {
     #[case("\"foo\" + \"bar\"", "foobar")]
     #[case("\"42\" + \"24\"", "4224")]
     fn test_evaluate_string_concatenation(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -267,7 +267,7 @@ mod tests {
     #[case("12 <= 11", "false")]
     #[case("10 <= 11", "true")]
     fn test_evaluate_relational(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -281,8 +281,12 @@ mod tests {
     #[case("5.5 == 5.5", "true")]
     #[case("5.5 == 6.5", "false")]
     #[case("nil == nil", "true")]
+    #[case("true == nil", "false")]
+    #[case("1 == nil", "false")]
+    #[case("1 == false", "false")]
+    #[case("1 == \"foo\"", "false")]
     fn test_evaluate_equality_equals(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -297,7 +301,7 @@ mod tests {
     #[case("5.5 != 6.5", "true")]
     #[case("nil != nil", "false")]
     fn test_evaluate_equality_not_equals(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).unwrap().to_string());
+        assert_eq!(expected, run_evaluate(input).unwrap().to_string());
     }
 
     #[rstest]
@@ -319,6 +323,6 @@ mod tests {
     #[case("\"foo\" <= false", "Operands must be a numbers.")]
     #[case("\"foo\" >= false", "Operands must be a numbers.")]
     fn test_evaluate_runtime_error(#[case] input: &str, #[case] expected: &str) {
-        assert_eq!(expected, run(input).err().unwrap());
+        assert_eq!(expected, run_evaluate(input).err().unwrap());
     }
 }
