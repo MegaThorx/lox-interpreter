@@ -6,6 +6,7 @@ pub enum Statement {
     Variable(String, Option<Expression>),
     Expression(Expression),
     Block(Vec<Statement>),
+    If(Expression, Box<Statement>),
 }
 
 impl Display for Statement {
@@ -18,6 +19,7 @@ impl Display for Statement {
             },
             Statement::Expression(expression) => write!(f, "(; {})", expression),
             Statement::Block(statements) => write!(f, "(block ({}))", statements.iter().map(|statement| statement.to_string()).collect::<Vec<String>>().join(" ")),
+            Statement::If(expression, statement) => write!(f, "(if {}, {})", expression, statement),
         }
     }
 }

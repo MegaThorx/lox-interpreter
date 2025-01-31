@@ -59,25 +59,38 @@ impl<F: FnMut(String)> Interpreter<F> {
 
     fn run_statements(&mut self, statements: &Vec<Statement>) -> Result<(), String> {
         for statement in statements {
-            match statement {
-                Statement::Print(expression) => {
-                    let value = format!("{}", self.evaluate(expression)?);
-                    (self.print)(value);
-                },
-                Statement::Expression(expression) => {
-                    self.evaluate(expression)?;
-                },
-                Statement::Variable(name, expression) => {
-                    if expression.is_some() {
-                        let value = self.evaluate(expression.as_ref().unwrap())?;
-                        self.environment.declare(name.to_string(), value);
-                    } else {
-                        self.environment.declare(name.to_string(), Value::None);
-                    }
-                },
-                Statement::Block(statements) => {
+            self.run_statement(statement)?;
+        }
+
+        Ok(())
+    }
+    
+    fn run_statement(&mut self, statement: &Statement) -> Result<(), String> {
+        match statement {
+            Statement::Print(expression) => {
+                let value = format!("{}", self.evaluate(expression)?);
+                (self.print)(value);
+            },
+            Statement::Expression(expression) => {
+                self.evaluate(expression)?;
+            },
+            Statement::Variable(name, expression) => {
+                if expression.is_some() {
+                    let value = self.evaluate(expression.as_ref().unwrap())?;
+                    self.environment.declare(name.to_string(), value);
+                } else {
+                    self.environment.declare(name.to_string(), Value::None);
+                }
+            },
+            Statement::Block(statements) => {
+                self.environment.push_scope();
+                self.run_statements(statements)?;
+                self.environment.pop_scope();
+            },
+            Statement::If(condition, if_body) => {
+                if self.evaluate(condition)? == Value::Bool(true) {
                     self.environment.push_scope();
-                    self.run_statements(statements)?;
+                    self.run_statement(if_body)?;
                     self.environment.pop_scope();
                 }
             }
@@ -337,6 +350,8 @@ mod tests {
     #[case("var a = 1;print a;{a = 2; print a;}print a;", vec!["1", "2", "2"])]
     #[case("var a;print a;{a = 2; print a;}print a;", vec!["nil", "2", "2"])]
     #[case("var a = \"a\";print a;{var a = true; print a;}a = nil; print a;", vec!["a", "true", "nil"])]
+    #[case("if (true) print \"a\";", vec!["a"])]
+    #[case("if (true) { print \"a\"; }", vec!["a"])]
     fn test_statements(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
     }
