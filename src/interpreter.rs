@@ -64,7 +64,7 @@ impl<F: FnMut(String)> Interpreter<F> {
 
         Ok(())
     }
-    
+
     fn run_statement(&mut self, statement: &Statement) -> Result<(), String> {
         match statement {
             Statement::Print(expression) => {
@@ -84,14 +84,27 @@ impl<F: FnMut(String)> Interpreter<F> {
             },
             Statement::Block(statements) => {
                 self.environment.push_scope();
-                self.run_statements(statements)?;
+                let result =self.run_statements(statements);
                 self.environment.pop_scope();
+                if result.is_err() {
+                    return Err(result.err().unwrap())
+                }
             },
-            Statement::If(condition, if_body) => {
+            Statement::If(condition, if_body, else_body) => {
                 if self.evaluate(condition)? == Value::Bool(true) {
                     self.environment.push_scope();
-                    self.run_statement(if_body)?;
+                    let result =self.run_statement(if_body);
                     self.environment.pop_scope();
+                    if result.is_err() {
+                        return Err(result.err().unwrap())
+                    }
+                } else if let Some(else_body) = else_body {
+                    self.environment.push_scope();
+                    let result = self.run_statement(else_body);
+                    self.environment.pop_scope();
+                    if result.is_err() {
+                        return Err(result.err().unwrap())
+                    }
                 }
             }
         }
@@ -352,6 +365,8 @@ mod tests {
     #[case("var a = \"a\";print a;{var a = true; print a;}a = nil; print a;", vec!["a", "true", "nil"])]
     #[case("if (true) print \"a\";", vec!["a"])]
     #[case("if (true) { print \"a\"; }", vec!["a"])]
+    #[case("if (true) { print \"a\"; } else { print \"b\"; }", vec!["a"])]
+    #[case("if (false) { print \"a\"; } else { print \"b\"; }", vec!["b"])]
     fn test_statements(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
     }

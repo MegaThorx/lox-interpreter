@@ -95,8 +95,14 @@ impl<'a> Parser<'a> {
             }
             self.advance();
 
-            let statement = self.parse_statement()?;
-            Statement::If(expression, Box::new(statement))
+            let if_body = self.parse_statement()?;
+            let mut else_body: Option<Box<Statement>> = None;
+
+            if matches!(self, TokenType::Else) {
+                else_body = Some(Box::new(self.parse_statement()?));
+            }
+
+            Statement::If(expression, Box::new(if_body), else_body)
         } else {
             let expression = self.parse_expression()?;
 

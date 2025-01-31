@@ -6,7 +6,7 @@ pub enum Statement {
     Variable(String, Option<Expression>),
     Expression(Expression),
     Block(Vec<Statement>),
-    If(Expression, Box<Statement>),
+    If(Expression, Box<Statement>, Option<Box<Statement>>),
 }
 
 impl Display for Statement {
@@ -19,7 +19,10 @@ impl Display for Statement {
             },
             Statement::Expression(expression) => write!(f, "(; {})", expression),
             Statement::Block(statements) => write!(f, "(block ({}))", statements.iter().map(|statement| statement.to_string()).collect::<Vec<String>>().join(" ")),
-            Statement::If(expression, statement) => write!(f, "(if {}, {})", expression, statement),
+            Statement::If(expression, if_body, else_body) => match else_body {
+                Some(else_body) => write!(f, "(if {}, {} {})", expression, if_body, else_body),
+                None => write!(f, "(if {}, {})", expression, if_body),  
+            },
         }
     }
 }
