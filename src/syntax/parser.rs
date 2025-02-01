@@ -103,6 +103,22 @@ impl<'a> Parser<'a> {
             }
 
             Statement::If(expression, Box::new(if_body), else_body)
+        } else if matches!(self, TokenType::While) {
+            if !self.check(TokenType::LeftParen) {
+                return Err(format!("[line {}] Expect '(' after if.", self.current().line));
+            }
+            self.advance();
+
+            let expression = self.parse_expression()?;
+
+            if !self.check(TokenType::RightParen) {
+                return Err(format!("[line {}] Expect ')' after if condition.", self.current().line));
+            }
+            self.advance();
+
+            let body = self.parse_statement()?;
+
+            Statement::While(expression, Box::new(body))
         } else {
             let expression = self.parse_expression()?;
 

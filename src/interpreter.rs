@@ -116,6 +116,16 @@ impl<F: FnMut(String)> Interpreter<F> {
                         return Err(result.err().unwrap())
                     }
                 }
+            },
+            Statement::While(condition, body) => {
+                while self.evaluate(condition)?.is_truthy() {
+                    self.environment.push_scope();
+                    let result = self.run_statement(body);
+                    self.environment.pop_scope();
+                    if result.is_err() {
+                        return Err(result.err().unwrap())
+                    }
+                }
             }
         }
 
@@ -413,6 +423,13 @@ mod tests {
     #[case("print \"quz\" or \"quz\";", vec!["quz"])]
     #[case("if (\"hi\" or 2) { print \"yes\"; }", vec!["yes"])]
     fn test_statements_logical(#[case] input: &str, #[case] expected: Vec<&str>) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+
+    #[rstest]
+    #[case("var i = 0; while(i < 5) {i = i + 1; print \"hi\"; }", vec!["hi", "hi", "hi", "hi", "hi"])]
+    fn test_statements_while(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
     }
 
