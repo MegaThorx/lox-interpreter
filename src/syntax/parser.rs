@@ -119,6 +119,45 @@ impl<'a> Parser<'a> {
             let body = self.parse_statement()?;
 
             Statement::While(expression, Box::new(body))
+        } else if matches!(self, TokenType::For) {
+            if !self.check(TokenType::LeftParen) {
+                return Err(format!("[line {}] Expect '(' after if.", self.current().line));
+            }
+            self.advance();
+
+            let mut initial: Option<Box<Statement>> = None;
+
+            if !self.check(TokenType::Semicolon) {
+                initial = Some(Box::new(self.parse_statement()?));
+            } else {
+                self.advance();
+            }
+
+            let mut condition: Option<Expression> = None;
+
+            if !self.check(TokenType::Semicolon) {
+                condition = Some(self.parse_expression()?);
+            }
+
+            if !self.check(TokenType::Semicolon) {
+                return Err(format!("[line {}] Expect ';' after for condition.", self.current().line));
+            }
+            self.advance();
+
+            let mut incrementer: Option<Expression> = None;
+
+            if !self.check(TokenType::RightParen) {
+                incrementer = Some(self.parse_expression()?);
+            }
+
+            if !self.check(TokenType::RightParen) {
+                return Err(format!("[line {}] Expect ')' after if condition.", self.current().line));
+            }
+            self.advance();
+
+            let body = self.parse_statement()?;
+
+            Statement::For(initial, condition, incrementer, Box::new(body))
         } else {
             let expression = self.parse_expression()?;
 
@@ -163,15 +202,15 @@ impl<'a> Parser<'a> {
 
         Ok(expression)
     }
-    
+
     fn parse_and(&mut self) -> Result<Expression, String> {
         let mut expression = self.parse_equality()?;
-        
+
         while matches!(self, TokenType::And) {
             let right = self.parse_equality()?;
             expression = Expression::And(Box::new(expression), Box::new(right));
         }
-        
+
         Ok(expression)
     }
 

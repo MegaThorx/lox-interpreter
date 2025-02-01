@@ -118,7 +118,7 @@ impl<F: FnMut(String)> Interpreter<F> {
                 }
             },
             Statement::While(condition, body) => {
-                while self.evaluate(condition)?.is_truthy() {
+                while self.evaluate(condition)?.is_truthy() { // TODO: If the evaluate errors it will not pop the scope
                     self.environment.push_scope();
                     let result = self.run_statement(body);
                     self.environment.pop_scope();
@@ -126,6 +126,37 @@ impl<F: FnMut(String)> Interpreter<F> {
                         return Err(result.err().unwrap())
                     }
                 }
+            },
+            Statement::For(initial, condition, incrementer, body) => {
+                self.environment.push_scope();
+                
+                if let Some(initial) = initial {
+                    let result = self.run_statement(initial);
+                    if result.is_err() {
+                        self.environment.pop_scope();
+                        return Err(result.err().unwrap())
+                    }
+                }
+
+                while {
+                    if let Some(condition) = condition {
+                        self.evaluate(condition)?.is_truthy()
+                    } else {
+                        true
+                    }
+                } { // TODO: If the evaluate errors it will not pop the scope
+                    let result = self.run_statement(body);
+
+                    if result.is_err() {
+                        self.environment.pop_scope();
+                        return Err(result.err().unwrap())
+                    }
+
+                    if let Some(incrementer) = incrementer {
+                        self.evaluate_expression(incrementer)?; // TODO: If the evaluate errors it will not pop the scope
+                    }
+                }
+                self.environment.pop_scope();
             }
         }
 
@@ -430,6 +461,14 @@ mod tests {
     #[rstest]
     #[case("var i = 0; while(i < 5) {i = i + 1; print \"hi\"; }", vec!["hi", "hi", "hi", "hi", "hi"])]
     fn test_statements_while(#[case] input: &str, #[case] expected: Vec<&str>) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+
+    #[rstest]
+    #[case("for (var baz = 0; baz < 3;) print baz = baz + 1;", vec!["1", "2", "3"])]
+    #[case("for (var world = 0; world < 3; world = world + 1) { print world; }", vec!["0", "1", "2"])]
+    fn test_statements_for(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
     }
 
