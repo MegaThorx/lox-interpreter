@@ -95,6 +95,8 @@ pub enum Expression {
     Binary(BinaryOperation, Box<Expression>, Box<Expression>),
     Variable(String),
     Assign(String, Box<Expression>),
+    And(Box<Expression>, Box<Expression>),
+    Or(Box<Expression>, Box<Expression>),
 }
 
 impl Display for Expression {
@@ -106,6 +108,8 @@ impl Display for Expression {
             Expression::Binary(operator, left, right) => write!(f, "({} {} {})", operator, left, right),
             Expression::Variable(name) => write!(f, "(variable {})", name),
             Expression::Assign(name, expression) => write!(f, "(assign {} {})", name, expression),
+            Expression::And(left, right) => write!(f, "({} and {})", left, right),
+            Expression::Or(left, right) => write!(f, "({} or {})", left, right),
         }
     }
 }

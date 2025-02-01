@@ -11,6 +11,16 @@ pub enum Value {
     None,
 }
 
+impl Value {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Value::Bool(bool) => *bool,
+            Value::None => false,
+            _ => true,
+        }
+    }
+}
+
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -91,9 +101,9 @@ impl<F: FnMut(String)> Interpreter<F> {
                 }
             },
             Statement::If(condition, if_body, else_body) => {
-                if self.evaluate(condition)? == Value::Bool(true) {
+                if self.evaluate(condition)?.is_truthy() {
                     self.environment.push_scope();
-                    let result =self.run_statement(if_body);
+                    let result = self.run_statement(if_body);
                     self.environment.pop_scope();
                     if result.is_err() {
                         return Err(result.err().unwrap())
@@ -166,7 +176,7 @@ impl<F: FnMut(String)> Interpreter<F> {
                 })
             },
             Expression::Variable(name) => {
-                if let Some(value) = self.environment.get(&name) {
+                if let Some(value) = self.environment.get(name) {
                     match value {
                         Value::Bool(boolean) => Ok(Literal::Bool(*boolean)),
                         Value::Number(number) => Ok(Literal::Number(*number)),
@@ -176,6 +186,24 @@ impl<F: FnMut(String)> Interpreter<F> {
                 } else {
                     Err(format!("Undefined variable '{}'.", name))
                 }
+            },
+            Expression::And(left, right) => {
+                let left = self.evaluate_expression(left)?;
+
+                if !left.is_truthy() {
+                    return Ok(left);
+                }
+
+                self.evaluate_expression(right)
+            },
+            Expression::Or(left, right) => {
+                let left = self.evaluate_expression(left)?;
+
+                if left.is_truthy() {
+                    return Ok(left);
+                }
+
+                self.evaluate_expression(right)
             },
         }
     }
@@ -367,7 +395,24 @@ mod tests {
     #[case("if (true) { print \"a\"; }", vec!["a"])]
     #[case("if (true) { print \"a\"; } else { print \"b\"; }", vec!["a"])]
     #[case("if (false) { print \"a\"; } else { print \"b\"; }", vec!["b"])]
+    #[case("if (true) { print \"a\"; } else if (true) { print \"b\"; }", vec!["a"])]
+    #[case("if (false) { print \"a\"; } else if (true) { print \"b\"; }", vec!["b"])]
     fn test_statements(#[case] input: &str, #[case] expected: Vec<&str>) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+
+    #[rstest]
+    #[case("print \"hi\" or 2;", vec!["hi"])]
+    #[case("print nil or \"yes\";", vec!["yes"])]
+    #[case("print false or \"ok\";", vec!["ok"])]
+    #[case("print nil or \"ok\";", vec!["ok"])]
+    #[case("print nil or false;", vec!["false"])]
+    #[case("print true or \"bar\";", vec!["true"])]
+    #[case("print 22 or \"quz\";", vec!["22"])]
+    #[case("print \"quz\" or \"quz\";", vec!["quz"])]
+    #[case("if (\"hi\" or 2) { print \"yes\"; }", vec!["yes"])]
+    fn test_statements_logical(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
     }
 

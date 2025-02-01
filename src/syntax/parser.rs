@@ -123,7 +123,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_assignment(&mut self) -> Result<Expression, String> {
-        let mut expression = self.parse_equality()?;
+        let mut expression = self.parse_or()?;
 
         while matches!(self, TokenType::Equal) {
             expression = match expression {
@@ -134,6 +134,28 @@ impl<'a> Parser<'a> {
             }
         }
 
+        Ok(expression)
+    }
+
+    fn parse_or(&mut self) -> Result<Expression, String> {
+        let mut expression = self.parse_and()?;
+
+        while matches!(self, TokenType::Or) {
+            let right = self.parse_and()?;
+            expression = Expression::Or(Box::new(expression), Box::new(right));
+        }
+
+        Ok(expression)
+    }
+    
+    fn parse_and(&mut self) -> Result<Expression, String> {
+        let mut expression = self.parse_equality()?;
+        
+        while matches!(self, TokenType::And) {
+            let right = self.parse_equality()?;
+            expression = Expression::And(Box::new(expression), Box::new(right));
+        }
+        
         Ok(expression)
     }
 
