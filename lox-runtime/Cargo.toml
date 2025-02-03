@@ -1,0 +1,10 @@
+[package]
+name = "lox-runtime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lox-syntax = { path = "../lox-syntax" }
+
+[dev-dependencies]
+rstest = "0.24.0"

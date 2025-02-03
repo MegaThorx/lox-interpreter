@@ -1,5 +1,5 @@
 ﻿use std::fmt::{Display, Formatter};
-use crate::syntax::expression::Expression;
+use crate::expression::Expression;
 
 pub enum Statement {
     Print(Expression),

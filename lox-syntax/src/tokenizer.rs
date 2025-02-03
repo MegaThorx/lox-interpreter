@@ -1,5 +1,5 @@
-﻿use crate::syntax::token::{Token, TokenType};
-use phf::{phf_map, Map};
+﻿use phf::{phf_map, Map};
+use crate::token::{Token, TokenType};
 
 static KEYWORDS: Map<&'static str, TokenType> = phf_map! {
     "and" => TokenType::And,
@@ -207,8 +207,8 @@ impl<'a> Scanner<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::syntax::token::{Token, TokenType};
-    use crate::syntax::tokenizer::Scanner;
+    use crate::token::{Token, TokenType};
+    use crate::tokenizer::Scanner;
 
     #[test]
     fn test_lexer_single_character_tokens() {

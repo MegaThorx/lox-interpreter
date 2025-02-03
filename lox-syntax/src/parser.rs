@@ -1,6 +1,6 @@
-use crate::syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
-use crate::syntax::statement::Statement;
-use crate::syntax::token::{Token, TokenType};
+use crate::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
+use crate::statement::Statement;
+use crate::token::{Token, TokenType};
 
 pub struct Parser<'a> {
     tokens: Vec<Token<'a>>,
@@ -339,9 +339,9 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use rstest::*;
-    use crate::syntax::expression::Expression;
-    use crate::syntax::parser::Parser;
-    use crate::syntax::tokenizer::Scanner;
+    use crate::expression::Expression;
+    use crate::parser::Parser;
+    use crate::tokenizer::Scanner;
 
     fn run_expression(source: &str) -> Result<Expression, String> {
         let mut scanner = Scanner::new(source);

@@ -32,7 +32,7 @@ impl Literal {
             _ => true,
         }
     }
-    
+
     pub fn is_equal(&self, other: &Literal) -> bool {
         match (self, other) {
             (Literal::Bool(left), Literal::Bool(right)) => left == right,

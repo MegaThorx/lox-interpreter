@@ -1,12 +1,8 @@
-[package]
-name = "codecrafters-interpreter"
-version = "0.1.0"
-authors = ["Codecrafters <hello@codecrafters.io>"]
-edition = "2021"
-rust-version = "1.80"
+[workspace]
+resolver = "2"
 
-[dependencies]
-phf = { version = "0.11", features = ["macros"] }
-
-[dev-dependencies]
-rstest = "0.24.0"
+members = [
+    "lox-codecrafters",
+    "lox-runtime",
+    "lox-syntax",
+]

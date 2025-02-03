@@ -1,7 +1,7 @@
 ﻿use std::fmt::Display;
+use lox_syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
+use lox_syntax::statement::Statement;
 use crate::environment::Environment;
-use crate::syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
-use crate::syntax::statement::Statement;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Value {
@@ -253,9 +253,9 @@ impl<F: FnMut(String)> Interpreter<F> {
 #[cfg(test)]
 mod tests {
     use rstest::*;
+    use lox_syntax::parser::Parser;
+    use lox_syntax::tokenizer::Scanner;
     use crate::interpreter::{Interpreter, Value};
-    use crate::syntax::parser::Parser;
-    use crate::syntax::tokenizer::Scanner;
 
     fn run_evaluate(source: &str) -> Result<Value, String> {
         let mut scanner = Scanner::new(source);

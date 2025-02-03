@@ -1,0 +1,8 @@
+[package]
+name = "lox-codecrafters"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lox-syntax = { path = "../lox-syntax" }
+lox-runtime = { path = "../lox-runtime" }

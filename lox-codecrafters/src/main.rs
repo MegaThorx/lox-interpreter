@@ -1,13 +1,9 @@
-mod syntax;
-mod interpreter;
-mod environment;
-
 use std::env;
 use std::fs;
 use std::process::exit;
-use crate::interpreter::Interpreter;
-use crate::syntax::parser::Parser;
-use crate::syntax::tokenizer::Scanner;
+use lox_runtime::interpreter::Interpreter;
+use lox_syntax::parser::Parser;
+use lox_syntax::tokenizer::Scanner;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -26,7 +22,7 @@ fn main() {
         eprintln!("Failed to read file {}", filename);
         String::new()
     });
-    
+
     match command.as_str() {
         "tokenize" => {
             let mut scanner = Scanner::new(&file_contents);
