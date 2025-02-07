@@ -253,6 +253,7 @@ impl<F: FnMut(String)> Interpreter<F> {
 #[cfg(test)]
 mod tests {
     use rstest::*;
+    use std::time::Duration;
     use lox_syntax::parser::Parser;
     use lox_syntax::tokenizer::Scanner;
     use crate::interpreter::{Interpreter, Value};
@@ -474,6 +475,8 @@ mod tests {
 
     #[rstest]
     #[case("print a;", "Undefined variable 'a'.")]
+    #[timeout(Duration::from_millis(50))]
+    #[case("for(;;) var a;", "[line 1] Error at 'var': Expect expression.")]
     fn test_statements_error(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_statement(input).err().unwrap());
     }

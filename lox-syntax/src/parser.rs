@@ -1,3 +1,4 @@
+use std::io::BufRead;
 use crate::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
 use crate::statement::Statement;
 use crate::token::{Token, TokenType};
@@ -32,24 +33,18 @@ impl<'a> Parser<'a> {
         let mut statements = Vec::<Statement>::new();
 
         while !self.check(TokenType::Eof) {
-            statements.push(self.parse_statement()?);
+            statements.push(self.parse_declaration()?);
         }
 
         Ok(statements)
     }
 
-    fn parse_statement(&mut self) -> Result<Statement, String> {
-        let statement = if matches!(self, TokenType::Print) {
-            let expression = self.parse_expression()?;
+    fn parse_declaration(&mut self) -> Result<Statement, String> {
+        self.parse_variable_declaration()
+    }
 
-            if !self.check(TokenType::Semicolon) {
-                return Err(format!("[line {}] Expect ';' after expression.", self.current().line));
-            }
-
-            self.advance();
-
-            Statement::Print(expression)
-        } else if matches!(self, TokenType::Var) {
+    fn parse_variable_declaration(&mut self) -> Result<Statement, String> {
+        if matches!(self, TokenType::Var) {
             let token = self.consume();
 
             if let TokenType::Identifier(name) = token.token {
@@ -64,15 +59,31 @@ impl<'a> Parser<'a> {
 
                 self.advance();
 
-                Statement::Variable(name.to_string(), expression)
+                Ok(Statement::Variable(name.to_string(), expression))
             } else {
-                return Err(format!("[line {}] Expect variable name.", token.line));
+                Err(format!("[line {}] Expect variable name.", token.line))
             }
+        } else {
+            self.parse_statement()
+        }
+    }
+
+    fn parse_statement(&mut self) -> Result<Statement, String> {
+        let statement = if matches!(self, TokenType::Print) {
+            let expression = self.parse_expression()?;
+
+            if !self.check(TokenType::Semicolon) {
+                return Err(format!("[line {}] Expect ';' after expression.", self.current().line));
+            }
+
+            self.advance();
+
+            Statement::Print(expression)
         } else if matches!(self, TokenType::LeftBrace) {
             let mut statements: Vec<Statement> = Vec::new();
 
             while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-                statements.push(self.parse_statement()?);
+                statements.push(self.parse_declaration()?);
             }
 
             if !self.check(TokenType::RightBrace) {
@@ -128,7 +139,7 @@ impl<'a> Parser<'a> {
             let mut initial: Option<Box<Statement>> = None;
 
             if !self.check(TokenType::Semicolon) {
-                initial = Some(Box::new(self.parse_statement()?));
+                initial = Some(Box::new(self.parse_variable_declaration()?));
             } else {
                 self.advance();
             }
