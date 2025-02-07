@@ -1,4 +1,3 @@
-use std::io::BufRead;
 use crate::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
 use crate::statement::Statement;
 use crate::token::{Token, TokenType};
