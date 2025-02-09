@@ -1,4 +1,5 @@
 ﻿use std::fmt::Display;
+use std::time::{SystemTime, UNIX_EPOCH};
 use lox_syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
 use lox_syntax::statement::Statement;
 use crate::environment::Environment;
@@ -8,6 +9,7 @@ pub enum Value {
     Bool(bool),
     Number(f64),
     String(String),
+    Callable(Callable),
     None,
 }
 
@@ -29,6 +31,15 @@ impl Value {
             _ => false,
         }
     }
+
+    pub fn from_literal(literal: Literal) -> Value {
+        match literal {
+            Literal::Bool(value) => Value::Bool(value),
+            Literal::Number(value) => Value::Number(value),
+            Literal::String(value) => Value::String(value),
+            Literal::None => Value::None,
+        }
+    }
 }
 
 impl Display for Value {
@@ -42,18 +53,22 @@ impl Display for Value {
                 }
             },
             Value::String(string) => write!(f, "{}", string),
+            Value::Callable(callable) => write!(f, "{}", callable),
             Value::None => write!(f, "nil"),
         }
     }
 }
 
-impl Value {
-    pub fn from_literal(literal: Literal) -> Value {
-        match literal {
-            Literal::Bool(value) => Value::Bool(value),
-            Literal::Number(value) => Value::Number(value),
-            Literal::String(value) => Value::String(value),
-            Literal::None => Value::None,
+#[derive(PartialEq, Debug, Clone)]
+pub enum Callable {
+    Native(usize, Box<fn(&Vec<Value>) -> Value>)
+}
+
+
+impl Display for Callable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Callable::Native(_, _) => write!(f, "<native fn>"),
         }
     }
 }
@@ -65,8 +80,19 @@ pub struct Interpreter<F: FnMut(String)> {
 
 impl<F: FnMut(String)> Interpreter<F> {
     pub fn new(print: F) -> Self {
+        let mut environment = Environment::default();
+
+        environment.declare("clock".to_string(), Value::Callable(
+            Callable::Native(0, Box::new(|_args| {
+                Value::Number(match SystemTime::now().duration_since(UNIX_EPOCH) {
+                    Ok(duration) => duration.as_secs_f64().floor(),
+                    Err(_) => 0.0,
+                })
+            }))
+        ));
+
         Self {
-            environment: Environment::default(),
+            environment,
             print
         }
     }
@@ -223,6 +249,7 @@ impl<F: FnMut(String)> Interpreter<F> {
                         Value::Bool(boolean) => Ok(Value::Bool(*boolean)),
                         Value::Number(number) => Ok(Value::Number(*number)),
                         Value::String(string) => Ok(Value::String(string.clone())),
+                        Value::Callable(callable) => Ok(Value::Callable(callable.clone())),
                         Value::None => Ok(Value::None),
                     }
                 } else {
@@ -247,8 +274,19 @@ impl<F: FnMut(String)> Interpreter<F> {
 
                 self.evaluate(right)
             },
-            Expression::Call(_callee, _arguments) => {
-                Ok(Value::None)
+            Expression::Call(callee, _arguments) => {
+                let callee = self.evaluate(callee)?;
+
+                match callee {
+                    Value::Callable(callable) => {
+                        match callable {
+                            Callable::Native(_ary, function) => {
+                                Ok(function(&Vec::new()))
+                            }
+                        }
+                    }
+                    _ => Err("Can only call functions and classes.".to_string())
+                }
             },
         }
     }
