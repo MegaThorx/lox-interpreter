@@ -19,6 +19,16 @@ impl Value {
             _ => true,
         }
     }
+
+    pub fn is_equal(&self, other: &Value) -> bool {
+        match (self, other) {
+            (Value::Bool(left), Value::Bool(right)) => left == right,
+            (Value::Number(left), Value::Number(right)) => left == right,
+            (Value::String(left), Value::String(right)) => left == right,
+            (Value::None, Value::None) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for Value {
@@ -153,7 +163,7 @@ impl<F: FnMut(String)> Interpreter<F> {
                     }
 
                     if let Some(incrementer) = incrementer {
-                        self.evaluate_expression(incrementer)?; // TODO: If the evaluate errors it will not pop the scope
+                        self.evaluate(incrementer)?; // TODO: If the evaluate errors it will not pop the scope
                     }
                 }
                 self.environment.pop_scope();
@@ -164,52 +174,43 @@ impl<F: FnMut(String)> Interpreter<F> {
     }
 
     pub fn evaluate(&mut self, expression: &Expression) -> Result<Value, String> {
-        let result = self.evaluate_expression(expression);
-        if let Ok(literal) = result {
-            Ok(Value::from_literal(literal))
-        } else {
-            Err(result.err().unwrap())
-        }
-    }
-
-    fn evaluate_expression(&mut self, expression: &Expression) -> Result<Literal, String> {
         match expression {
             Expression::Assign(name, expression) => {
-                let result = self.evaluate_expression(expression)?;
-                self.environment.assign(name.clone(), Value::from_literal(result.clone()))?;
+                let result = self.evaluate(expression)?;
+                self.environment.assign(name.clone(), result.clone())?;
                 Ok(result)
             },
-            Expression::Literal(literal) => Ok(literal.clone()),
-            Expression::Grouping(expression) => self.evaluate_expression(expression),
+            Expression::Literal(literal) => Ok(Value::from_literal(literal.clone())),
+            Expression::Grouping(expression) => self.evaluate(expression),
             Expression::Unary(operation, expression) => {
                 match operation {
-                    UnaryOperation::Minus => match self.evaluate_expression(expression)? {
-                        Literal::Number(number) => Ok(Literal::Number(-number)),
+                    UnaryOperation::Minus => match self.evaluate(expression)? {
+                        Value::Number(number) => Ok(Value::Number(-number)),
                         _ => Err("Operand must be a number.".to_string()),
                     },
-                    UnaryOperation::Not => Ok(Literal::Bool(!self.evaluate_expression(expression)?.is_truthy())),
+                    UnaryOperation::Not => Ok(Value::Bool(!self.evaluate(expression)?.is_truthy())),
                 }
             },
             Expression::Binary(operation, left, right) => {
-                let left = self.evaluate_expression(left)?;
-                let right = self.evaluate_expression(right)?;
+                let left = self.evaluate(left)?;
+                let right = self.evaluate(right)?;
 
                 Ok(match operation {
-                    BinaryOperation::Equal => Literal::Bool(left.is_equal(&right)),
-                    BinaryOperation::NotEqual => Literal::Bool(!left.is_equal(&right)),
+                    BinaryOperation::Equal => Value::Bool(left.is_equal(&right)),
+                    BinaryOperation::NotEqual => Value::Bool(!left.is_equal(&right)),
                     operation => match (left, right) {
-                        (Literal::Number(left), Literal::Number(right)) => match operation {
-                            BinaryOperation::Multiply => Literal::Number(left * right),
-                            BinaryOperation::Divide => Literal::Number(left / right),
-                            BinaryOperation::Plus => Literal::Number(left + right),
-                            BinaryOperation::Minus => Literal::Number(left - right),
-                            BinaryOperation::Greater => Literal::Bool(left > right),
-                            BinaryOperation::GreaterEqual => Literal::Bool(left >= right),
-                            BinaryOperation::Less => Literal::Bool(left < right),
-                            _ => Literal::Bool(left <= right), // Last one can only be LessEqual
+                        (Value::Number(left), Value::Number(right)) => match operation {
+                            BinaryOperation::Multiply => Value::Number(left * right),
+                            BinaryOperation::Divide => Value::Number(left / right),
+                            BinaryOperation::Plus => Value::Number(left + right),
+                            BinaryOperation::Minus => Value::Number(left - right),
+                            BinaryOperation::Greater => Value::Bool(left > right),
+                            BinaryOperation::GreaterEqual => Value::Bool(left >= right),
+                            BinaryOperation::Less => Value::Bool(left < right),
+                            _ => Value::Bool(left <= right), // Last one can only be LessEqual
                         },
-                        (Literal::String(left), Literal::String(right)) => match operation {
-                            BinaryOperation::Plus => Literal::String(format!("{}{}", left, right)),
+                        (Value::String(left), Value::String(right)) => match operation {
+                            BinaryOperation::Plus => Value::String(format!("{}{}", left, right)),
                             _ => return Err("Operands must be a numbers.".to_string()),
                         }
                         (_, _) => return Err("Operands must be a numbers.".to_string())
@@ -219,32 +220,35 @@ impl<F: FnMut(String)> Interpreter<F> {
             Expression::Variable(name) => {
                 if let Some(value) = self.environment.get(name) {
                     match value {
-                        Value::Bool(boolean) => Ok(Literal::Bool(*boolean)),
-                        Value::Number(number) => Ok(Literal::Number(*number)),
-                        Value::String(string) => Ok(Literal::String(string.clone())),
-                        Value::None => Ok(Literal::None),
+                        Value::Bool(boolean) => Ok(Value::Bool(*boolean)),
+                        Value::Number(number) => Ok(Value::Number(*number)),
+                        Value::String(string) => Ok(Value::String(string.clone())),
+                        Value::None => Ok(Value::None),
                     }
                 } else {
                     Err(format!("Undefined variable '{}'.", name))
                 }
             },
             Expression::And(left, right) => {
-                let left = self.evaluate_expression(left)?;
+                let left = self.evaluate(left)?;
 
                 if !left.is_truthy() {
                     return Ok(left);
                 }
 
-                self.evaluate_expression(right)
+                self.evaluate(right)
             },
             Expression::Or(left, right) => {
-                let left = self.evaluate_expression(left)?;
+                let left = self.evaluate(left)?;
 
                 if left.is_truthy() {
                     return Ok(left);
                 }
 
-                self.evaluate_expression(right)
+                self.evaluate(right)
+            },
+            Expression::Call(_callee, _arguments) => {
+                Ok(Value::None)
             },
         }
     }
@@ -452,10 +456,23 @@ mod tests {
     #[case("print nil or false;", vec!["false"])]
     #[case("print true or \"bar\";", vec!["true"])]
     #[case("print 22 or \"quz\";", vec!["22"])]
+    #[case("print 22 and \"quz\";", vec!["quz"])]
+    #[case("print true and false;", vec!["false"])]
+    #[case("print false and true;", vec!["false"])]
     #[case("print \"quz\" or \"quz\";", vec!["quz"])]
     #[case("if (\"hi\" or 2) { print \"yes\"; }", vec!["yes"])]
+    #[case("if (false) {  } else { print \"yes\"; }", vec!["yes"])]
+    #[case("if (false) {  }", vec![])]
     fn test_statements_logical(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("if (a) { print \"yes\"; }", "Undefined variable 'a'.")]
+    #[case("if (1) { print a; }", "Undefined variable 'a'.")]
+    #[case("if (false) { } else { print a; }", "Undefined variable 'a'.")]
+    fn test_statements_logical_error(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).err().unwrap());
     }
 
 
@@ -465,11 +482,32 @@ mod tests {
         assert_eq!(expected, run_statement(input).unwrap());
     }
 
+    #[rstest]
+    #[case("while(i < 5) {i = i + 1; print \"hi\"; }", "Undefined variable 'i'.")]
+    #[case("var i = 0; while(i < 5) {i = a + 1; print \"hi\"; }", "Undefined variable 'a'.")]
+    fn test_statements_while_error(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).err().unwrap());
+    }
+
 
     #[rstest]
     #[case("for (var baz = 0; baz < 3;) print baz = baz + 1;", vec!["1", "2", "3"])]
     #[case("for (var world = 0; world < 3; world = world + 1) { print world; }", vec!["0", "1", "2"])]
     fn test_statements_for(#[case] input: &str, #[case] expected: Vec<&str>) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("for (;i < 5;) {i = i + 1; print \"hi\"; }", "Undefined variable 'i'.")]
+    #[case("for (;;) { print a; }", "Undefined variable 'a'.")]
+    #[case("for (i = 0;;) { print a; }", "Undefined variable")]
+    fn test_statements_for_error(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).err().unwrap());
+    }
+
+    #[rstest]
+    #[case("clock();", vec![])]
+    fn test_statements_call(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
     }
 

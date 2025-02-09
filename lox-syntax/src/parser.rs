@@ -94,7 +94,7 @@ impl<'a> Parser<'a> {
             Statement::Block(statements)
         } else if matches!(self, TokenType::If) {
             if !self.check(TokenType::LeftParen) {
-                return Err(format!("[line {}] Expect '(' after if.", self.current().line));
+                return Err(format!("[line {}] Expect '(' after 'if'.", self.current().line));
             }
             self.advance();
 
@@ -115,14 +115,14 @@ impl<'a> Parser<'a> {
             Statement::If(expression, Box::new(if_body), else_body)
         } else if matches!(self, TokenType::While) {
             if !self.check(TokenType::LeftParen) {
-                return Err(format!("[line {}] Expect '(' after if.", self.current().line));
+                return Err(format!("[line {}] Expect '(' after 'while'.", self.current().line));
             }
             self.advance();
 
             let expression = self.parse_expression()?;
 
             if !self.check(TokenType::RightParen) {
-                return Err(format!("[line {}] Expect ')' after if condition.", self.current().line));
+                return Err(format!("[line {}] Expect ')' after condition.", self.current().line));
             }
             self.advance();
 
@@ -131,7 +131,7 @@ impl<'a> Parser<'a> {
             Statement::While(expression, Box::new(body))
         } else if matches!(self, TokenType::For) {
             if !self.check(TokenType::LeftParen) {
-                return Err(format!("[line {}] Expect '(' after if.", self.current().line));
+                return Err(format!("[line {}] Expect '(' after 'for'.", self.current().line));
             }
             self.advance();
 
@@ -161,7 +161,7 @@ impl<'a> Parser<'a> {
             }
 
             if !self.check(TokenType::RightParen) {
-                return Err(format!("[line {}] Expect ')' after if condition.", self.current().line));
+                return Err(format!("[line {}] Expect ')' after for clauses.", self.current().line));
             }
             self.advance();
 
@@ -286,7 +286,45 @@ impl<'a> Parser<'a> {
             });
         }
 
-        self.parse_primary()
+        self.parse_call()
+    }
+
+    fn parse_call(&mut self) -> Result<Expression, String> {
+        let mut expression = self.parse_primary()?;
+
+        loop {
+            if matches!(self, TokenType::LeftParen) {
+                expression = Expression::Call(Box::new(expression), self.finish_call()?);
+            } else {
+                break;
+            }
+        }
+
+        Ok(expression)
+    }
+
+    fn finish_call(&mut self) -> Result<Vec<Expression>, String> {
+        let mut arguments: Vec<Expression> = Vec::new();
+
+        if !self.check(TokenType::RightParen) {
+            loop {
+                arguments.push(self.parse_expression()?);
+
+                if !matches!(self, TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+
+        if arguments.len() >= 255 {
+            return Err(format!("[line {}] Can't have more than 255 arguments.", self.current().line));
+        }
+
+        if !matches!(self, TokenType::RightParen) {
+            Err(format!("[line {}] Expect ')' after arguments.", self.current().line))
+        } else {
+            Ok(arguments)
+        }
     }
 
     fn parse_primary(&mut self) -> Result<Expression, String> {
@@ -431,6 +469,30 @@ mod tests {
     fn test_parser_equal(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_expression(input).unwrap().to_string());
     }
+
+    #[rstest]
+    #[case("1 or 1", "(1.0 or 1.0)")]
+    #[case("1 and 1", "(1.0 and 1.0)")]
+    #[case("(1 and 1) or 1", "((group (1.0 and 1.0)) or 1.0)")]
+    fn test_parser_and_or(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
+    }
+
+    #[rstest]
+    #[case("test()", "(call (variable test))")]
+    #[case("test(1)", "(call (variable test) 1.0)")]
+    #[case("test(\"test\", a, 2)", "(call (variable test) test (variable a) 2.0)")]
+    fn test_parser_call(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_expression(input).unwrap().to_string());
+    }
+
+    #[rstest]
+    #[case("test({", "[line 1] Error at '{': Expect expression.")]
+    #[case("test(1", "[line 1] Expect ')' after arguments.")]
+    #[case(&format!("test(1{})", ", 1".repeat(254)), "[line 1] Can't have more than 255 arguments.")]
+    fn test_parser_call_error(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_expression(input).err().unwrap().to_string());
+    }
     
     #[rstest]
     #[case("(72 +)", "[line 1] Error at ')': Expect expression.")]
@@ -484,6 +546,22 @@ mod tests {
     }
 
     #[rstest]
+    #[case("if (1==1) print 1;", "(if (== 1.0 1.0), (print (; 1.0)))")]
+    #[case("if (1==1) print 1; else print 2;", "(if (== 1.0 1.0), (print (; 1.0)) (print (; 2.0)))")]
+    #[case("while (1==1) print 1;", "(while ((== 1.0 1.0)) (print (; 1.0)))")]
+    #[case("for (;;) print 1;", "(for (;;) (print (; 1.0)))")]
+    #[case("for (var a = 1;;) print 1;", "(for ((var a = (; 1.0));;) (print (; 1.0)))")]
+    #[case("for (var a = 1; a < 10;) print 1;", "(for ((var a = (; 1.0));(< (variable a) 10.0);) (print (; 1.0)))")]
+    #[case("for (var a = 1;; a = 1) print 1;", "(for ((var a = (; 1.0));;(assign a 1.0)) (print (; 1.0)))")]
+    #[case("for (var a = 1; a < 10; a = 1) print 1;", "(for ((var a = (; 1.0));(< (variable a) 10.0);(assign a 1.0)) (print (; 1.0)))")]
+    #[case("for (; a < 10;) print 1;", "(for (;(< (variable a) 10.0);) (print (; 1.0)))")]
+    #[case("for (; a < 10; a = 1) print 1;", "(for (;(< (variable a) 10.0);(assign a 1.0)) (print (; 1.0)))")]
+    #[case("for (;; a = 1) print 1;", "(for (;;(assign a 1.0)) (print (; 1.0)))")]
+    fn test_parser_statement_control_flow(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
     #[case("print \"hello world\"", "[line 1] Expect ';' after expression.")]
     #[case("var test = 1", "[line 1] Expect ';' after value.")]
     #[case("var test = (", "[line 1] Error at end: Expect expression.")]
@@ -491,6 +569,13 @@ mod tests {
     #[case("{", "[line 1] Expect '}' after block.")]
     #[case("1 + 1", "[line 1] Expect ';' after value.")]
     #[case("2 = 1", "Invalid assignment target.")]
+    #[case("if", "[line 1] Expect '(' after 'if'.")]
+    #[case("if(1==1", "[line 1] Expect ')' after if condition.")]
+    #[case("while", "[line 1] Expect '(' after 'while'.")]
+    #[case("while(1==1", "[line 1] Expect ')' after condition.")]
+    #[case("for", "[line 1] Expect '(' after 'for'.")]
+    #[case("for(var a = 1;a < 10", "[line 1] Expect ';' after for condition.")]
+    #[case("for(var a = 1;a < 10; a = a + 1", "[line 1] Expect ')' after for clauses.")]
     fn test_parser_statement_error(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_statement(input).err().unwrap());
     }

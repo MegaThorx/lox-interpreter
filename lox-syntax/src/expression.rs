@@ -24,26 +24,6 @@ impl Display for Literal {
     }
 }
 
-impl Literal {
-    pub fn is_truthy(&self) -> bool {
-        match self {
-            Literal::Bool(bool) => *bool,
-            Literal::None => false,
-            _ => true,
-        }
-    }
-
-    pub fn is_equal(&self, other: &Literal) -> bool {
-        match (self, other) {
-            (Literal::Bool(left), Literal::Bool(right)) => left == right,
-            (Literal::Number(left), Literal::Number(right)) => left == right,
-            (Literal::String(left), Literal::String(right)) => left == right,
-            (Literal::None, Literal::None) => true,
-            _ => false,
-        }
-    }
-}
-
 pub enum UnaryOperation {
     Minus,
     Not,
@@ -97,6 +77,7 @@ pub enum Expression {
     Assign(String, Box<Expression>),
     And(Box<Expression>, Box<Expression>),
     Or(Box<Expression>, Box<Expression>),
+    Call(Box<Expression>, Vec<Expression>),
 }
 
 impl Display for Expression {
@@ -110,6 +91,10 @@ impl Display for Expression {
             Expression::Assign(name, expression) => write!(f, "(assign {} {})", name, expression),
             Expression::And(left, right) => write!(f, "({} and {})", left, right),
             Expression::Or(left, right) => write!(f, "({} or {})", left, right),
+            Expression::Call(callee, arguments) => match arguments.is_empty() {
+                true => write!(f, "(call {})", callee),
+                false => write!(f, "(call {} {})", callee, arguments.iter().map(|statement| statement.to_string()).collect::<Vec<String>>().join(" ")),
+            },
         }
     }
 }
