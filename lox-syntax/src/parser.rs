@@ -39,7 +39,56 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_declaration(&mut self) -> Result<Statement, String> {
-        self.parse_variable_declaration()
+        if matches!(self, TokenType::Fun) {
+            self.parse_function_declaration("function")
+        } else {
+            self.parse_variable_declaration()
+        }
+    }
+
+    fn parse_function_declaration(&mut self, kind: &str) -> Result<Statement, String> {
+        let token = self.consume();
+
+        let identifier = match token.token {
+            TokenType::Identifier(identifier) => identifier.to_string(),
+            _ => return Err(format!("[line {}] Expect {} name.", self.current().line, kind)),
+        };
+
+        if !self.check(TokenType::LeftParen) {
+            return Err(format!("[line {}] Expect '(' after {} name.", self.current().line, kind));
+        }
+        self.advance();
+
+        let mut parameters: Vec<String> = Vec::new();
+
+        if !self.check(TokenType::RightParen) {
+            loop {
+                if parameters.len() >= 255 {
+                    return Err(format!("[line {}] Can't have more than 255 parameters.", self.current().line));
+                }
+
+                let token = self.consume();
+
+                let identifier = match token.token {
+                    TokenType::Identifier(identifier) => identifier.to_string(),
+                    _ => return Err(format!("[line {}] Expect parameter name.", self.current().line)),
+                };
+
+                parameters.push(identifier);
+
+                if !matches!(self, TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+
+        if !self.check(TokenType::RightParen) {
+            return Err(format!("[line {}] Expect ')' after parameters.", self.current().line));
+        }
+        self.advance();
+
+        let body = self.parse_statement()?;
+        Ok(Statement::Function(identifier, parameters, Box::new(body)))
     }
 
     fn parse_variable_declaration(&mut self) -> Result<Statement, String> {
@@ -78,6 +127,19 @@ impl<'a> Parser<'a> {
             self.advance();
 
             Statement::Print(expression)
+        } else if matches!(self, TokenType::Return) {
+            let mut expression: Option<Expression> = None;
+
+            if !self.check(TokenType::Semicolon) {
+                expression = Some(self.parse_expression()?);
+            }
+
+            if !self.check(TokenType::Semicolon) {
+                return Err(format!("[line {}] Expect ';' after return value.", self.current().line));
+            }
+            self.advance();
+
+            Statement::Return(expression)
         } else if matches!(self, TokenType::LeftBrace) {
             let mut statements: Vec<Statement> = Vec::new();
 
@@ -308,16 +370,16 @@ impl<'a> Parser<'a> {
 
         if !self.check(TokenType::RightParen) {
             loop {
+                if arguments.len() >= 255 {
+                    return Err(format!("[line {}] Can't have more than 255 arguments.", self.current().line));
+                }
+
                 arguments.push(self.parse_expression()?);
 
                 if !matches!(self, TokenType::Comma) {
                     break;
                 }
             }
-        }
-
-        if arguments.len() >= 255 {
-            return Err(format!("[line {}] Can't have more than 255 arguments.", self.current().line));
         }
 
         if !matches!(self, TokenType::RightParen) {
@@ -481,6 +543,7 @@ mod tests {
     #[rstest]
     #[case("test()", "(call (variable test))")]
     #[case("test(1)", "(call (variable test) 1.0)")]
+    #[case(&format!("test(1{})", ", 1".repeat(254)), &format!("(call (variable test) 1.0{})", " 1.0".repeat(254)))]
     #[case("test(\"test\", a, 2)", "(call (variable test) test (variable a) 2.0)")]
     fn test_parser_call(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_expression(input).unwrap().to_string());
@@ -489,7 +552,7 @@ mod tests {
     #[rstest]
     #[case("test({", "[line 1] Error at '{': Expect expression.")]
     #[case("test(1", "[line 1] Expect ')' after arguments.")]
-    #[case(&format!("test(1{})", ", 1".repeat(254)), "[line 1] Can't have more than 255 arguments.")]
+    #[case(&format!("test(1{})", ", 1".repeat(255)), "[line 1] Can't have more than 255 arguments.")]
     fn test_parser_call_error(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_expression(input).err().unwrap().to_string());
     }
@@ -558,6 +621,13 @@ mod tests {
     #[case("for (; a < 10; a = 1) print 1;", "(for (;(< (variable a) 10.0);(assign a 1.0)) (print (; 1.0)))")]
     #[case("for (;; a = 1) print 1;", "(for (;;(assign a 1.0)) (print (; 1.0)))")]
     fn test_parser_statement_control_flow(#[case] input: &str, #[case] expected: &str) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("fun bar() { print 10; }", "(function bar() (block ((print (; 10.0)))))")]
+    #[case("fun bar(a, b, c) { print a + b + c; }", "(function bar(a, b, c) (block ((print (; (+ (+ (variable a) (variable b)) (variable c)))))))")]
+    fn test_parser_statement_function(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_statement(input).unwrap());
     }
 

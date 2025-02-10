@@ -1,6 +1,7 @@
 ﻿use std::fmt::{Display, Formatter};
 use crate::expression::Expression;
 
+#[derive(PartialEq, Debug, Clone)]
 pub enum Statement {
     Print(Expression),
     Variable(String, Option<Expression>),
@@ -9,6 +10,8 @@ pub enum Statement {
     If(Expression, Box<Statement>, Option<Box<Statement>>),
     While(Expression, Box<Statement>),
     For(Option<Box<Statement>>, Option<Expression>, Option<Expression>, Box<Statement>),
+    Function(String, Vec<String>, Box<Statement>),
+    Return(Option<Expression>),
 }
 
 impl Display for Statement {
@@ -47,6 +50,11 @@ impl Display for Statement {
                         None => write!(f, "(for (;;) {})", body),
                     }
                 }
+            },
+            Statement::Function(name, parameters, body) => write!(f, "(function {}({}) {})", name, parameters.iter().map(|statement| statement.to_string()).collect::<Vec<String>>().join(", "), body),
+            Statement::Return(expression) => match expression {
+                Some(expression) => write!(f, "(return {})", expression),
+                None => write!(f, "(return)"),
             },
         }
     }

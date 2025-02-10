@@ -1,77 +1,8 @@
-﻿use std::fmt::Display;
-use std::time::{SystemTime, UNIX_EPOCH};
-use lox_syntax::expression::{BinaryOperation, Expression, Literal, UnaryOperation};
+﻿use std::time::{SystemTime, UNIX_EPOCH};
+use lox_syntax::expression::{BinaryOperation, Expression, UnaryOperation};
 use lox_syntax::statement::Statement;
 use crate::environment::Environment;
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum Value {
-    Bool(bool),
-    Number(f64),
-    String(String),
-    Callable(Callable),
-    None,
-}
-
-impl Value {
-    pub fn is_truthy(&self) -> bool {
-        match self {
-            Value::Bool(bool) => *bool,
-            Value::None => false,
-            _ => true,
-        }
-    }
-
-    pub fn is_equal(&self, other: &Value) -> bool {
-        match (self, other) {
-            (Value::Bool(left), Value::Bool(right)) => left == right,
-            (Value::Number(left), Value::Number(right)) => left == right,
-            (Value::String(left), Value::String(right)) => left == right,
-            (Value::None, Value::None) => true,
-            _ => false,
-        }
-    }
-
-    pub fn from_literal(literal: Literal) -> Value {
-        match literal {
-            Literal::Bool(value) => Value::Bool(value),
-            Literal::Number(value) => Value::Number(value),
-            Literal::String(value) => Value::String(value),
-            Literal::None => Value::None,
-        }
-    }
-}
-
-impl Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Value::Bool(bool) => write!(f, "{}", bool),
-            Value::Number(number) => {
-                match number.fract() == 0.0 {
-                    true => write!(f, "{:.0}", number),
-                    _ => write!(f, "{}", number),
-                }
-            },
-            Value::String(string) => write!(f, "{}", string),
-            Value::Callable(callable) => write!(f, "{}", callable),
-            Value::None => write!(f, "nil"),
-        }
-    }
-}
-
-#[derive(PartialEq, Debug, Clone)]
-pub enum Callable {
-    Native(usize, Box<fn(&Vec<Value>) -> Value>)
-}
-
-
-impl Display for Callable {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Callable::Native(_, _) => write!(f, "<native fn>"),
-        }
-    }
-}
+use crate::value::{Callable, Error, Value};
 
 pub struct Interpreter<F: FnMut(String)> {
     environment: Environment,
@@ -98,12 +29,26 @@ impl<F: FnMut(String)> Interpreter<F> {
     }
 
     pub fn run(&mut self, statements: &Vec<Statement>) -> Result<(), String> {
-        self.run_statements(statements)?;
-
-        Ok(())
+        match self.run_statements(statements) {
+            Ok(value) => Ok(value),
+            Err(error) => match error {
+                Error::Runtime(error) => Err(error),
+                Error::Return(_) => Err("Received unexpected return value".to_string()),
+            }
+        }
     }
 
-    fn run_statements(&mut self, statements: &Vec<Statement>) -> Result<(), String> {
+    pub fn evaluate_expression(&mut self, expression: &Expression) -> Result<Value, String> {
+        match self.evaluate(expression) {
+            Ok(value) => Ok(value),
+            Err(error) => match error {
+                Error::Runtime(error) => Err(error),
+                Error::Return(_) => Err("Received unexpected return value".to_string()),
+            }
+        }
+    }
+
+    fn run_statements(&mut self, statements: &Vec<Statement>) -> Result<(), Error> {
         for statement in statements {
             self.run_statement(statement)?;
         }
@@ -111,7 +56,7 @@ impl<F: FnMut(String)> Interpreter<F> {
         Ok(())
     }
 
-    fn run_statement(&mut self, statement: &Statement) -> Result<(), String> {
+    fn run_statement(&mut self, statement: &Statement) -> Result<(), Error> {
         match statement {
             Statement::Print(expression) => {
                 let value = format!("{}", self.evaluate(expression)?);
@@ -130,7 +75,7 @@ impl<F: FnMut(String)> Interpreter<F> {
             },
             Statement::Block(statements) => {
                 self.environment.push_scope();
-                let result =self.run_statements(statements);
+                let result = self.run_statements(statements);
                 self.environment.pop_scope();
                 if result.is_err() {
                     return Err(result.err().unwrap())
@@ -193,13 +138,24 @@ impl<F: FnMut(String)> Interpreter<F> {
                     }
                 }
                 self.environment.pop_scope();
+            },
+            Statement::Function(name, parameters, body) => {
+                self.environment.declare(name.clone(), Value::Callable(
+                    Callable::Function(name.clone(), parameters.clone(), body.clone())
+                ));
+            },
+            Statement::Return(value) => {
+                return Err(Error::Return(match value {
+                    Some(value) => self.evaluate(value)?,
+                    None => Value::None
+                }));
             }
         }
 
         Ok(())
     }
 
-    pub fn evaluate(&mut self, expression: &Expression) -> Result<Value, String> {
+    fn evaluate(&mut self, expression: &Expression) -> Result<Value, Error> {
         match expression {
             Expression::Assign(name, expression) => {
                 let result = self.evaluate(expression)?;
@@ -212,7 +168,7 @@ impl<F: FnMut(String)> Interpreter<F> {
                 match operation {
                     UnaryOperation::Minus => match self.evaluate(expression)? {
                         Value::Number(number) => Ok(Value::Number(-number)),
-                        _ => Err("Operand must be a number.".to_string()),
+                        _ => Err(Error::Runtime("Operand must be a number.".to_string())),
                     },
                     UnaryOperation::Not => Ok(Value::Bool(!self.evaluate(expression)?.is_truthy())),
                 }
@@ -237,9 +193,9 @@ impl<F: FnMut(String)> Interpreter<F> {
                         },
                         (Value::String(left), Value::String(right)) => match operation {
                             BinaryOperation::Plus => Value::String(format!("{}{}", left, right)),
-                            _ => return Err("Operands must be a numbers.".to_string()),
+                            _ => return Err(Error::Runtime("Operands must be a numbers.".to_string())),
                         }
-                        (_, _) => return Err("Operands must be a numbers.".to_string())
+                        (_, _) => return Err(Error::Runtime("Operands must be a numbers.".to_string())),
                     }
                 })
             },
@@ -253,7 +209,7 @@ impl<F: FnMut(String)> Interpreter<F> {
                         Value::None => Ok(Value::None),
                     }
                 } else {
-                    Err(format!("Undefined variable '{}'.", name))
+                    Err(Error::Runtime(format!("Undefined variable '{}'.", name)))
                 }
             },
             Expression::And(left, right) => {
@@ -274,20 +230,60 @@ impl<F: FnMut(String)> Interpreter<F> {
 
                 self.evaluate(right)
             },
-            Expression::Call(callee, _arguments) => {
+            Expression::Call(callee, arguments) => {
                 let callee = self.evaluate(callee)?;
 
                 match callee {
                     Value::Callable(callable) => {
                         match callable {
-                            Callable::Native(_ary, function) => {
-                                Ok(function(&Vec::new()))
+                            Callable::Native(arity, function) => {
+                                if arguments.len() != arity {
+                                    return Err(Error::Runtime(format!("Expected {} arguments but got {}.", arity, arguments.len())));
+                                }
+
+                                let mut parameters: Vec<Value> = Vec::with_capacity(arguments.len());
+
+                                for argument in arguments {
+                                    parameters.push(self.evaluate(&argument)?);
+                                }
+
+                                Ok(function(&parameters))
+                            }
+                            Callable::Function(_name, parameters, body) => {
+                                if arguments.len() != parameters.len() {
+                                    return Err(Error::Runtime(format!("Expected {} arguments but got {}.", parameters.len(), arguments.len())));
+                                }
+
+                                self.environment.push_scope();
+
+                                for index in 0..parameters.len() {
+                                    let value = self.evaluate(&arguments[index]);
+
+                                    if let Ok(value) = value {
+                                        self.environment.declare(parameters[index].clone(), value);
+                                    } else {
+                                        self.environment.pop_scope();
+                                        return Err(value.err().unwrap());
+                                    }
+                                }
+
+                                let result = self.run_statement(&body);
+                                self.environment.pop_scope();
+
+                                if result.is_err() {
+                                    match result.err().unwrap() {
+                                        Error::Return(value) => Ok(value),
+                                        Error::Runtime(value) => Err(Error::Runtime(value)),
+                                    }
+                                } else {
+                                    Ok(Value::None)
+                                }
                             }
                         }
                     }
-                    _ => Err("Can only call functions and classes.".to_string())
+                    _ => Err(Error::Runtime("Can only call functions and classes.".to_string()))
                 }
-            },
+            }
         }
     }
 }
@@ -298,14 +294,15 @@ mod tests {
     use std::time::Duration;
     use lox_syntax::parser::Parser;
     use lox_syntax::tokenizer::Scanner;
-    use crate::interpreter::{Interpreter, Value};
+    use crate::interpreter::Interpreter;
+    use crate::value::Value;
 
     fn run_evaluate(source: &str) -> Result<Value, String> {
         let mut scanner = Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
         let mut parser = Parser::new(tokens);
         let mut interpreter = Interpreter::new(|_|{});
-        interpreter.evaluate(&parser.parse_expression()?)
+        interpreter.evaluate_expression(&parser.parse_expression()?)
     }
 
     fn run_statement(source: &str) -> Result<Vec<String>, String> {
@@ -546,6 +543,14 @@ mod tests {
     #[rstest]
     #[case("clock();", vec![])]
     fn test_statements_call(#[case] input: &str, #[case] expected: Vec<&str>) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("fun test() { print 10; } test();", vec!["10"])]
+    #[case("fun test(a, b, c) { print a + b + c; } test(10, 10, 10);", vec!["30"])]
+    #[case("fun test() { return 10; } print test();", vec!["10"])]
+    fn test_statements_function(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
     }
 

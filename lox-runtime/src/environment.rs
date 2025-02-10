@@ -1,6 +1,6 @@
 use std::collections::hash_map::Entry::Occupied;
 use std::collections::HashMap;
-use crate::interpreter::Value;
+use crate::value::{Error, Value};
 
 type Scope = HashMap<String, Value>;
 
@@ -31,7 +31,7 @@ impl Environment {
         self.current_mut().insert(name, value);
     }
 
-    pub fn assign(&mut self, name: String, value: Value) -> Result<(), String> {
+    pub fn assign(&mut self, name: String, value: Value) -> Result<(), Error> {
         for scope in self.scopes.iter_mut().rev() {
             if let Occupied(mut entry) = scope.entry(name.clone()) {
                 entry.insert(value);
@@ -39,7 +39,7 @@ impl Environment {
             }
         }
         
-        Err("Undefined variable".into())
+        Err(Error::Runtime("Undefined variable".into()))
     }
 
     pub fn get(&self, name: &str) -> Option<&Value> {
@@ -57,7 +57,7 @@ impl Environment {
 mod tests {
     use rstest::*;
     use crate::environment::Environment;
-    use crate::interpreter::Value;
+    use crate::value::Value;
 
     #[rstest]
     #[case(Value::String("string".into()))]

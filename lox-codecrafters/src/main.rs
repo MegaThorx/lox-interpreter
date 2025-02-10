@@ -79,7 +79,7 @@ fn main() {
 
             if expression.is_ok() {
                 let mut interpreter = Interpreter::new(|_|{});
-                let result = interpreter.evaluate(&expression.unwrap());
+                let result = interpreter.evaluate_expression(&expression.unwrap());
 
                 if result.is_ok() {
                     println!("{}", result.unwrap());

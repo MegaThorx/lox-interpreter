@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-#[derive(Clone)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Literal {
     Bool(bool),
     Number(f64),
@@ -24,6 +24,7 @@ impl Display for Literal {
     }
 }
 
+#[derive(PartialEq, Debug, Clone)]
 pub enum UnaryOperation {
     Minus,
     Not,
@@ -38,6 +39,7 @@ impl Display for UnaryOperation {
     }
 }
 
+#[derive(PartialEq, Debug, Clone)]
 pub enum BinaryOperation {
     Multiply,
     Divide,
@@ -68,6 +70,7 @@ impl Display for BinaryOperation {
     }
 }
 
+#[derive(PartialEq, Debug, Clone)]
 pub enum Expression {
     Literal(Literal),
     Grouping(Box<Expression>),
