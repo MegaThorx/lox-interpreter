@@ -87,6 +87,10 @@ impl<'a> Parser<'a> {
         }
         self.advance();
 
+        if !self.check(TokenType::LeftBrace) {
+            return Err(format!("[line {}] Expect '{}' before {} body.", self.current().line, "{", kind));
+        }
+
         let body = self.parse_statement()?;
         Ok(Statement::Function(identifier, parameters, Box::new(body)))
     }
