@@ -1,6 +1,9 @@
-﻿use std::fmt::Display;
+﻿use std::cell::RefCell;
+use std::fmt::Display;
+use std::rc::Rc;
 use lox_syntax::expression::Literal;
 use lox_syntax::statement::Statement;
+use crate::environment::Environment;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Value {
@@ -60,7 +63,7 @@ impl Display for Value {
 #[derive(PartialEq, Debug, Clone)]
 pub enum Callable {
     Native(usize, Box<fn(&Vec<Value>) -> Value>),
-    Function(String, Vec<String>, Box<Statement>),
+    Function(String, Rc<RefCell<Environment>>, Vec<String>, Box<Statement>),
 }
 
 
@@ -68,11 +71,12 @@ impl Display for Callable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Callable::Native(_, _) => write!(f, "<native fn>"),
-            Callable::Function(name, _, _) => write!(f, "<fn {}>", name),
+            Callable::Function(name, _, _, _) => write!(f, "<fn {}>", name),
         }
     }
 }
 
+#[derive(Debug)]
 pub enum Error {
     Runtime(String),
     Return(Value),

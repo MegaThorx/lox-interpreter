@@ -1,11 +1,13 @@
-﻿use std::time::{SystemTime, UNIX_EPOCH};
+﻿use std::cell::RefCell;
+use std::rc::Rc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use lox_syntax::expression::{BinaryOperation, Expression, UnaryOperation};
 use lox_syntax::statement::Statement;
 use crate::environment::Environment;
 use crate::value::{Callable, Error, Value};
 
 pub struct Interpreter<F: FnMut(String)> {
-    environment: Environment,
+    environment: Rc<RefCell<Environment>>,
     print: F
 }
 
@@ -21,9 +23,9 @@ impl<F: FnMut(String)> Interpreter<F> {
                 })
             }))
         ));
-
+        
         Self {
-            environment,
+            environment: Rc::new(RefCell::new(environment)),
             print
         }
     }
@@ -68,53 +70,46 @@ impl<F: FnMut(String)> Interpreter<F> {
             Statement::Variable(name, expression) => {
                 if expression.is_some() {
                     let value = self.evaluate(expression.as_ref().unwrap())?;
-                    self.environment.declare(name.to_string(), value);
+                    self.environment.borrow_mut().declare(name.to_string(), value);
                 } else {
-                    self.environment.declare(name.to_string(), Value::None);
+                    self.environment.borrow_mut().declare(name.to_string(), Value::None);
                 }
             },
             Statement::Block(statements) => {
-                self.environment.push_scope();
+                let previous = Rc::clone(&self.environment);
+                self.environment = Rc::new(RefCell::new(Environment::new_with_enclosing(Rc::clone(&self.environment))));
                 let result = self.run_statements(statements);
-                self.environment.pop_scope();
+                self.environment = previous;
+
                 if result.is_err() {
                     return Err(result.err().unwrap())
                 }
             },
             Statement::If(condition, if_body, else_body) => {
                 if self.evaluate(condition)?.is_truthy() {
-                    self.environment.push_scope();
                     let result = self.run_statement(if_body);
-                    self.environment.pop_scope();
                     if result.is_err() {
                         return Err(result.err().unwrap())
                     }
                 } else if let Some(else_body) = else_body {
-                    self.environment.push_scope();
                     let result = self.run_statement(else_body);
-                    self.environment.pop_scope();
                     if result.is_err() {
                         return Err(result.err().unwrap())
                     }
                 }
             },
             Statement::While(condition, body) => {
-                while self.evaluate(condition)?.is_truthy() { // TODO: If the evaluate errors it will not pop the scope
-                    self.environment.push_scope();
+                while self.evaluate(condition)?.is_truthy() {
                     let result = self.run_statement(body);
-                    self.environment.pop_scope();
                     if result.is_err() {
                         return Err(result.err().unwrap())
                     }
                 }
             },
             Statement::For(initial, condition, incrementer, body) => {
-                self.environment.push_scope();
-                
                 if let Some(initial) = initial {
                     let result = self.run_statement(initial);
                     if result.is_err() {
-                        self.environment.pop_scope();
                         return Err(result.err().unwrap())
                     }
                 }
@@ -125,23 +120,21 @@ impl<F: FnMut(String)> Interpreter<F> {
                     } else {
                         true
                     }
-                } { // TODO: If the evaluate errors it will not pop the scope
+                } {
                     let result = self.run_statement(body);
 
                     if result.is_err() {
-                        self.environment.pop_scope();
                         return Err(result.err().unwrap())
                     }
 
                     if let Some(incrementer) = incrementer {
-                        self.evaluate(incrementer)?; // TODO: If the evaluate errors it will not pop the scope
+                        self.evaluate(incrementer)?;
                     }
                 }
-                self.environment.pop_scope();
             },
             Statement::Function(name, parameters, body) => {
-                self.environment.declare(name.clone(), Value::Callable(
-                    Callable::Function(name.clone(), parameters.clone(), body.clone())
+                self.environment.borrow_mut().declare(name.clone(), Value::Callable(
+                    Callable::Function(name.clone(), self.environment.clone(), parameters.clone(), body.clone())
                 ));
             },
             Statement::Return(value) => {
@@ -159,7 +152,7 @@ impl<F: FnMut(String)> Interpreter<F> {
         match expression {
             Expression::Assign(name, expression) => {
                 let result = self.evaluate(expression)?;
-                self.environment.assign(name.clone(), result.clone())?;
+                self.environment.borrow_mut().assign(name.clone(), result.clone())?;
                 Ok(result)
             },
             Expression::Literal(literal) => Ok(Value::from_literal(literal.clone())),
@@ -200,10 +193,10 @@ impl<F: FnMut(String)> Interpreter<F> {
                 })
             },
             Expression::Variable(name) => {
-                if let Some(value) = self.environment.get(name) {
+                if let Ok(value) = self.environment.borrow().get(name) {
                     match value {
-                        Value::Bool(boolean) => Ok(Value::Bool(*boolean)),
-                        Value::Number(number) => Ok(Value::Number(*number)),
+                        Value::Bool(boolean) => Ok(Value::Bool(boolean)),
+                        Value::Number(number) => Ok(Value::Number(number)),
                         Value::String(string) => Ok(Value::String(string.clone())),
                         Value::Callable(callable) => Ok(Value::Callable(callable.clone())),
                         Value::None => Ok(Value::None),
@@ -244,31 +237,39 @@ impl<F: FnMut(String)> Interpreter<F> {
                                 let mut parameters: Vec<Value> = Vec::with_capacity(arguments.len());
 
                                 for argument in arguments {
-                                    parameters.push(self.evaluate(&argument)?);
+                                    parameters.push(self.evaluate(argument)?);
                                 }
 
                                 Ok(function(&parameters))
                             }
-                            Callable::Function(_name, parameters, body) => {
+                            Callable::Function(_name, environment, parameters, body) => {
                                 if arguments.len() != parameters.len() {
                                     return Err(Error::Runtime(format!("Expected {} arguments but got {}.", parameters.len(), arguments.len())));
                                 }
 
-                                self.environment.push_scope();
+                                let previous = Rc::clone(&self.environment);
+                                let function = Rc::new(RefCell::new(Environment::new_with_enclosing(Rc::clone(&environment))));
 
                                 for index in 0..parameters.len() {
                                     let value = self.evaluate(&arguments[index]);
 
                                     if let Ok(value) = value {
-                                        self.environment.declare(parameters[index].clone(), value);
+                                        function.borrow_mut().declare(parameters[index].clone(), value);
                                     } else {
-                                        self.environment.pop_scope();
                                         return Err(value.err().unwrap());
                                     }
                                 }
 
-                                let result = self.run_statement(&body);
-                                self.environment.pop_scope();
+                                self.environment = function;
+
+                                let result = match *body {
+                                    Statement::Block(statements) => {
+                                        self.run_statements(&statements)
+                                    },
+                                    _ => Err(Error::Runtime("Expecting block statement".to_string()))
+                                };
+
+                                self.environment = previous;
 
                                 if result.is_err() {
                                     match result.err().unwrap() {
@@ -472,6 +473,7 @@ mod tests {
     #[case("var a = 1;print a;{a = 2; print a;}print a;", vec!["1", "2", "2"])]
     #[case("var a;print a;{a = 2; print a;}print a;", vec!["nil", "2", "2"])]
     #[case("var a = \"a\";print a;{var a = true; print a;}a = nil; print a;", vec!["a", "true", "nil"])]
+    #[case("var a = \"a\";print a;{var a = true; print a;} print a;", vec!["a", "true", "a"])]
     #[case("if (true) print \"a\";", vec!["a"])]
     #[case("if (true) { print \"a\"; }", vec!["a"])]
     #[case("if (true) { print \"a\"; } else { print \"b\"; }", vec!["a"])]
@@ -535,7 +537,7 @@ mod tests {
     #[rstest]
     #[case("for (;i < 5;) {i = i + 1; print \"hi\"; }", "Undefined variable 'i'.")]
     #[case("for (;;) { print a; }", "Undefined variable 'a'.")]
-    #[case("for (i = 0;;) { print a; }", "Undefined variable")]
+    #[case("for (i = 0;;) { print a; }", "Undefined variable 'i'.")]
     fn test_statements_for_error(#[case] input: &str, #[case] expected: &str) {
         assert_eq!(expected, run_statement(input).err().unwrap());
     }
@@ -551,6 +553,13 @@ mod tests {
     #[case("fun test(a, b, c) { print a + b + c; } test(10, 10, 10);", vec!["30"])]
     #[case("fun test() { return 10; } print test();", vec!["10"])]
     fn test_statements_function(#[case] input: &str, #[case] expected: Vec<&str>) {
+        assert_eq!(expected, run_statement(input).unwrap());
+    }
+
+    #[rstest]
+    #[case("fun test1(a) { fun test2() { print a; } return test2; } test1(10)();", vec!["10"])]
+    #[case("fun a(v) { return v; } fun b(v1, v2) { return a(v1)(v2); } print b(a, 10);", vec!["10"])]
+    fn test_statements_function_nested(#[case] input: &str, #[case] expected: Vec<&str>) {
         assert_eq!(expected, run_statement(input).unwrap());
     }
 

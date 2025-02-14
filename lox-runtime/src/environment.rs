@@ -1,60 +1,54 @@
+use std::cell::RefCell;
 use std::collections::hash_map::Entry::Occupied;
 use std::collections::HashMap;
+use std::rc::Rc;
 use crate::value::{Error, Value};
 
-type Scope = HashMap<String, Value>;
-
+#[derive(Default, PartialEq, Debug, Clone)]
 pub struct Environment {
-    scopes: Vec<Scope>,
-}
-
-impl Default for Environment {
-    fn default() -> Self {
-        Self { scopes: vec![Default::default()] }
-    }
+    values: HashMap<String, Value>,
+    enclosing: Option<Rc<RefCell<Environment>>>,
 }
 
 impl Environment {
-    pub fn push_scope(&mut self) {
-        self.scopes.push(Default::default());
-    }
-
-    pub fn pop_scope(&mut self) {
-        self.scopes.pop();
-    }
-
-    fn current_mut(&mut self) -> &mut Scope {
-        self.scopes.last_mut().expect("scopes is empty")
+    pub fn new_with_enclosing(enclosing: Rc<RefCell<Environment>>) -> Self {
+        Self {
+            values: HashMap::new(),
+            enclosing: Some(enclosing),
+        }
     }
 
     pub fn declare(&mut self, name: String, value: Value) {
-        self.current_mut().insert(name, value);
+        self.values.insert(name, value);
     }
 
     pub fn assign(&mut self, name: String, value: Value) -> Result<(), Error> {
-        for scope in self.scopes.iter_mut().rev() {
-            if let Occupied(mut entry) = scope.entry(name.clone()) {
-                entry.insert(value);
-                return Ok(());
-            }
+        if let Occupied(mut entry) = self.values.entry(name.clone()) {
+            entry.insert(value);
+            Ok(())
+        } else if self.enclosing.is_some() {
+            self.enclosing.as_ref().unwrap().borrow_mut().assign(name, value)?;
+            Ok(())
+        } else {
+            Err(Error::Runtime(format!("Undefined variable '{}'.", name)))
         }
-        
-        Err(Error::Runtime("Undefined variable".into()))
     }
 
-    pub fn get(&self, name: &str) -> Option<&Value> {
-        for scope in self.scopes.iter().rev() {
-            if scope.contains_key(name) {
-                return scope.get(name);
-            }
+    pub fn get(&self, name: &str) -> Result<Value, Error> {
+        if self.values.contains_key(name) {
+            Ok(self.values.get(name).unwrap().clone())
+        } else if self.enclosing.is_some() {
+            Ok(self.enclosing.as_ref().unwrap().borrow().get(name)?)
+        } else {
+            Err(Error::Runtime(format!("Undefined variable '{}'.", name)))
         }
-        
-        None
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use rstest::*;
     use crate::environment::Environment;
     use crate::value::Value;
@@ -67,7 +61,7 @@ mod tests {
     fn test_environment_declare(#[case] value: Value) {
         let mut env = Environment::default();
         env.declare("name".to_string(), value.clone());
-        assert_eq!(&value, env.get("name").unwrap());
+        assert_eq!(value, env.get("name").unwrap());
     }
 
     #[rstest]
@@ -78,11 +72,11 @@ mod tests {
     fn test_environment_declare_shadow(#[case] value1: Value, #[case] value2: Value) {
         let mut env = Environment::default();
         env.declare("name".to_string(), value1.clone());
-        env.push_scope();
-        env.declare("name".to_string(), value2.clone());
-        assert_eq!(&value2, env.get("name").unwrap());
-        env.pop_scope();
-        assert_eq!(&value1, env.get("name").unwrap());
+        let env = Rc::new(RefCell::new(env));
+        let mut env2 = Environment::new_with_enclosing(Rc::clone(&env));
+        env2.declare("name".to_string(), value2.clone());
+        assert_eq!(value2, env2.get("name").unwrap());
+        assert_eq!(value1, env.borrow().get("name").unwrap());
     }
 
     #[rstest]
@@ -93,9 +87,9 @@ mod tests {
     fn test_environment_declare_and_assign(#[case] value1: Value, #[case] value2: Value) {
         let mut env = Environment::default();
         env.declare("name".to_string(), value1.clone());
-        assert_eq!(&value1, env.get("name").unwrap());
+        assert_eq!(value1, env.get("name").unwrap());
         assert!(env.assign("name".to_string(), value2.clone()).is_ok());
-        assert_eq!(&value2, env.get("name").unwrap());
+        assert_eq!(value2, env.get("name").unwrap());
     }
 
     #[rstest]
@@ -111,6 +105,6 @@ mod tests {
     #[test]
     fn test_environment_get_without_declare() {
         let env = Environment::default();
-        assert!(env.get("name").is_none());
+        assert!(env.get("name").is_err());
     }
 }
