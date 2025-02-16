@@ -1,0 +1,10 @@
+﻿[
+  {
+    "name": "Hello World",
+    "code": "print \"Hello World!\";"
+  },
+  {
+    "name": "Function",
+    "code": "fun test() {\n\tprint \"Hello :)\";\n}\n\ntest();"
+  }
+]

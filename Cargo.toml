@@ -4,5 +4,6 @@ resolver = "2"
 members = [
     "lox-codecrafters",
     "lox-runtime",
-    "lox-syntax",
+    "lox-syntax", 
+    "lox-wasm",
 ]
